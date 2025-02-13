@@ -2,24 +2,26 @@
 # eCAL - enhanced Communication Abstraction Layer
 
 
-[![Build Windows Server 2019](https://github.com/eclipse-ecal/ecal/workflows/Build%20Windows%20Server%202019/badge.svg)](https://github.com/eclipse-ecal/ecal/actions?workflow=Build+Windows+Server+2019) [![Build Ubuntu 20.04](https://github.com/eclipse-ecal/ecal/workflows/Build%20Ubuntu%2020.04/badge.svg)](https://github.com/eclipse-ecal/ecal/actions?workflow=Build+Ubuntu+20.04) [![Build Ubuntu 22.04](https://github.com/eclipse-ecal/ecal/actions/workflows/build-ubuntu-22.yml/badge.svg)](https://github.com/eclipse-ecal/ecal/actions/workflows/build-ubuntu-22.yml) [![Build macOS](https://github.com/eclipse-ecal/ecal/actions/workflows/build-macos.yml/badge.svg)](https://github.com/eclipse-ecal/ecal/actions/workflows/build-macos.yml)
+[![Windows](https://github.com/eclipse-ecal/ecal/actions/workflows/build-windows.yml/badge.svg)](https://github.com/eclipse-ecal/ecal/actions/workflows/build-windows.yml) [![Ubuntu](https://github.com/eclipse-ecal/ecal/actions/workflows/build-ubuntu.yml/badge.svg)](https://github.com/eclipse-ecal/ecal/actions/workflows/build-ubuntu.yml) [![macOS](https://github.com/eclipse-ecal/ecal/actions/workflows/build-macos.yml/badge.svg)](https://github.com/eclipse-ecal/ecal/actions/workflows/build-macos.yml)
 
 [![License](https://img.shields.io/github/license/continental/ecal.svg?style=flat)](LICENSE.txt)
 
 The **e**nhanced **C**ommunication **A**bstraction **L**ayer (eCAL) is a middleware that enables scalable, high performance interprocess communication on a single computer node or between different nodes in a computer network.
-eCAL uses a **publish - subscribe** pattern to automatically connect different nodes in the network.
+eCAL provides **publish - subscribe** and **server - client** pattern to connect different nodes in the network with almost no configuration required.
 
-eCAL automatically chooses the best available data transport mechanism for each link:
+eCAL automatically chooses the best available data transport mechanism for each link, it supports:
 - **Shared memory** for local communication _(incredibly fast!)_
-- **UDP** for network communication
+- **UDP** and **TCP** for network communication
 
-Visit the eCAL Documentation at 🌐 http://ecal.io for more information.
+Visit the eCAL Documentation at 🌐 https://ecal.io for more information.
 
-![](doc/rst/getting_started/img/ecal_concept_notebooks.svg)
+## Architecture
+
+![eCAL Architecture](doc/rst/getting_started/img/ecal_architecture.png)
 
 ## Facts about eCAL
 
-* eCAL is fast (1 - 10 GB/s, depends on payload size. Check the measured performance [here](https://eclipse-ecal.github.io/ecal/advanced/performance.html))
+* eCAL is fast (1 - 20 GB/s, depends on payload size. Check the measured performance [here](https://eclipse-ecal.github.io/ecal/advanced/performance.html))
 * eCAL provides both publish-subscribe and server-client patterns
 * eCAL is brokerless
 * eCAL provides a C++ and C interface for easy integration into other languages (like python, csharp or [rust](https://github.com/kopernikusai/ecal-rs))
@@ -48,7 +50,7 @@ We provide binary installers for Windows and Ubuntu. If you need further help in
 
 ![eCAL Setup](doc/rst/getting_started/img/setup.png)
     
-*We only support 64bit Windows 7 / 10*
+*We only support 64bit Windows 10 / 11*
 
 ### Ubuntu
 
@@ -61,7 +63,7 @@ sudo apt-get install ecal
 ```
 This PPA will always upgrade you to the latest eCAL Release (-> Rolling Release PPA). If you intend to stay on an specific release, check out other PPAs [here](https://eclipse-ecal.github.io/ecal/getting_started/setup.html#fa-ubuntu-automatically-install-ecal-from-a-ppa).
 
-*Ubuntu 16.04, 18.04, 20.04, 20.10, 21.04 for CPU architectures i386, x64, armhf, arm64 are supported at the time of writing.*
+*Ubuntu 18.04, 20.04, 22.04, 24.04 for CPU architectures amd64, armhf, arm64 are supported at the time of writing. Non-LTS versions of Ubuntu are usually supported, too.*
 
 ## Example
 
@@ -123,8 +125,6 @@ eCAL comes with a set of read-to-use tools that will help you with developing, t
 ## eCAL & ROS
 * [rmw_ecal](https://github.com/eclipse-ecal/rmw_ecal) - eCAL / ROS2 middleware layer
 * [rosidl_typesupport_protobuf](https://github.com/eclipse-ecal/rosidl_typesupport_protobuf) - Protobuf based rosidl typesupport
-* [ecal-ros2-publisher](https://github.com/ecal-io/ecal-ros2-publisher) - Publishing eCAL topics to ROS2
-* [ecal-ros2-subscriber](https://github.com/ecal-io/ecal-ros2-subscriber) - Subscribing ROS2 topics in eCAL
 
 ## Other projects related to eCAL
 * [fineftp-server](https://github.com/eclipse-ecal/fineftp-server) - FTP functionality to collect distributed measurement artifacts over network
@@ -146,3 +146,10 @@ eCAL is licensed under Apache License 2.0. You are free to
 - Distribute eCAL
 
 eCAL is provided on an “as is” basis without warranties or conditions of any kind.
+
+
+## Contributors
+
+<a href="https://github.com/eclipse-ecal/ecal/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=eclipse-ecal/ecal" />
+</a>

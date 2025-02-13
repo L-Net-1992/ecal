@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ class ProcessesViewModel : public TableViewModel<Process>
 public:
   enum Column
   {
-    Host, PID, Name, CPU, Memory, Info, State
+    Host, PID, Name, Info, State
   };
 
   ProcessesViewModel(std::shared_ptr<MonitorModel> model_)
-    : TableViewModel<Process>({"Host", "PID", "Name", "CPU", "Memory", "Info", "State"})
+    : TableViewModel<Process>({"Host", "PID", "Name", "Info", "State"})
   {
     title = "Processes";
     model_->AddModelUpdateCallback([this, model_] {
@@ -48,13 +48,9 @@ public:
       case Column::Host:
         return value.host_name;
       case Column::PID:
-        return std::to_string(value.pid);
+        return std::to_string(value.process_id);
       case Column::Name:
         return value.name;
-      case Column::CPU:
-        return std::to_string(value.cpu_usage);
-      case Column::Memory:
-        return std::to_string(value.memory_usage);
       case Column::Info:
         return value.state_info;
       case Column::State:

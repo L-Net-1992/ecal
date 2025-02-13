@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,308 +21,445 @@
  * @brief  eCAL service server implementation
 **/
 
-#include "ecal_def.h"
-#include "ecal_config_reader_hlp.h"
+#include <ecal/config.h>
+#include <ecal/log.h>
+#include <ecal/process.h>
 
-#include "ecal_descgate.h"
-#include "ecal_registration_provider.h"
-#include "ecal_servicegate.h"
 #include "ecal_global_accessors.h"
 #include "ecal_service_server_impl.h"
-
-#include <chrono>
-#include <sstream>
+#include "ecal_service_singleton_manager.h"
+#include "registration/ecal_registration_provider.h"
+#include "serialization/ecal_serialize_service.h"
 
 namespace eCAL
 {
-  /**
-   * @brief Service server implementation class.
-  **/
-  CServiceServerImpl::CServiceServerImpl() :
-    m_connected(false), m_created(false)
+    // Factory method to create a new instance of CServiceServerImpl
+    std::shared_ptr<CServiceServerImpl> CServiceServerImpl::CreateInstance(
+      const std::string & service_name_, const ServerEventCallbackT & event_callback_)
+    {
+  #ifndef NDEBUG
+      Logging::Log(Logging::log_level_debug2, "CServiceServerImpl::CreateInstance: Creating instance of CServiceServerImpl for service: " + service_name_);
+  #endif
+      auto instance = std::shared_ptr<CServiceServerImpl>(new CServiceServerImpl(service_name_, event_callback_));
+      if (instance != nullptr)
+      {
+        instance->Start();
+      }
+      return instance;
+    }
+
+  // Constructor
+  CServiceServerImpl::CServiceServerImpl(const std::string& service_name_, const ServerEventCallbackT& event_callback_)
+    : m_service_name(service_name_), m_created(false), m_event_callback(event_callback_)
   {
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug2, "CServiceServerImpl::CServiceServerImpl: Initializing service server for: " + m_service_name);
+#endif
   }
 
-  CServiceServerImpl::CServiceServerImpl(const std::string& service_name_) :
-    m_connected(false), m_created(false)
-  {
-    Create(service_name_);
-  }
-
+  // Destructor
   CServiceServerImpl::~CServiceServerImpl()
   {
-    Destroy();
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::~CServiceServerImpl: Destroying service server for: " + m_service_name);
+#endif
+    Stop();
   }
 
-  bool CServiceServerImpl::Create(const std::string& service_name_)
+  bool CServiceServerImpl::SetMethodCallback(const SServiceMethodInformation& method_info_, const ServiceMethodCallbackT & callback_)
   {
-    if (m_created) return(false);
+    const auto& method_ = method_info_.method_name;
 
-    // set service name
-    m_service_name = service_name_;
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::SetMethodCallback: Adding method callback for method: " + method_);
+#endif
+    const std::lock_guard<std::mutex> lock(m_method_map_mutex);
 
-    // create service id
-    std::stringstream counter;
-    counter << std::chrono::steady_clock::now().time_since_epoch().count();
-    m_service_id = counter.str();
-
-    m_tcp_server.Create();
-    m_tcp_server.Start(std::bind(&CServiceServerImpl::RequestCallback, this, std::placeholders::_1, std::placeholders::_2),
-                       std::bind(&CServiceServerImpl::EventCallback,   this, std::placeholders::_1, std::placeholders::_2));
-
-    if (g_servicegate()) g_servicegate()->Register(this);
-
-    m_created = true;
-
-    return(true);
-  }
-
-  bool CServiceServerImpl::Destroy()
-  {
-    if (!m_created) return(false);
-
-    m_tcp_server.Stop();
-    m_tcp_server.Destroy();
-
-    if (g_servicegate())           g_servicegate()->Unregister(this);
-    if (g_registration_provider()) g_registration_provider()->UnregisterServer(m_service_name, m_service_id);
-
-    // reset method callback map
+    auto iter = m_method_map.find(method_);
+    if (iter != m_method_map.end())
     {
-      std::lock_guard<std::mutex> lock(m_method_map_sync);
-      m_method_map.clear();
-    }
+      Logging::Log(Logging::log_level_warning, "CServiceServerImpl::SetMethodCallback: Method already exists, updating attributes and callback: " + method_);
 
-    // reset event callback map
-    {
-      std::lock_guard<std::mutex> lock(m_event_callback_map_sync);
-      m_event_callback_map.clear();
-    }
+#if 0 // this is how it should look like if we do not use the old type and descriptor fields
+      // update data type and callback
+      iter->second.method.request_datatype_information = method_info_.request_type;
+      iter->second.method.response_datatype_information = method_info_.response_type;
+      iter->second.callback = callback_;
+#else
+      /////////////////////////////////////////////
+      // old types and descriptors
+      /////////////////////////////////////////////
+      iter->second.method.req_type = method_info_.request_type.name;
+      iter->second.method.resp_type = method_info_.response_type.name;
 
-    m_service_name.clear();
-    m_service_id.clear();
+      // we need to check these fields, because the v5 implementation is using SetMethodCallback with partially filled fields
+      if (!method_info_.request_type.descriptor.empty())  iter->second.method.req_desc = method_info_.request_type.descriptor;
+      if (!method_info_.response_type.descriptor.empty()) iter->second.method.resp_desc = method_info_.response_type.descriptor;
 
-    m_connected = false;
-    m_created   = false;
+      /////////////////////////////////////////////
+      // new types, encodings and descriptors
+      /////////////////////////////////////////////
+      iter->second.method.request_datatype_information.name = method_info_.request_type.name;
+      iter->second.method.response_datatype_information.name = method_info_.response_type.name;
 
-    return(true);
-  }
+      // we need to check these fields, because the v5 implementation is using SetMethodCallback with partially filled fields
+      if (!method_info_.request_type.encoding.empty())    iter->second.method.request_datatype_information.encoding = method_info_.request_type.encoding;
+      if (!method_info_.response_type.encoding.empty())   iter->second.method.response_datatype_information.encoding = method_info_.response_type.encoding;
+      if (!method_info_.request_type.descriptor.empty())  iter->second.method.request_datatype_information.descriptor = method_info_.request_type.descriptor;
+      if (!method_info_.response_type.descriptor.empty()) iter->second.method.response_datatype_information.descriptor = method_info_.response_type.descriptor;
 
-  bool CServiceServerImpl::AddDescription(const std::string& method_, const std::string& req_type_, const std::string& req_desc_, const std::string& resp_type_, const std::string& resp_desc_)
-  {
-    {
-      std::lock_guard<std::mutex> lock(m_method_map_sync);
-      auto iter = m_method_map.find(method_);
-      if (iter != m_method_map.end())
+      // we need to do this ugly hack here, because the v5 implementation is using SetMethodCallback with nullptr to update descriptions (AddDescription)
+      if (callback_ != nullptr)
       {
-        iter->second.method_pb.set_mname(method_);
-        iter->second.method_pb.set_req_type(req_type_);
-        iter->second.method_pb.set_req_desc(req_desc_);
-        iter->second.method_pb.set_resp_type(resp_type_);
-        iter->second.method_pb.set_resp_desc(resp_desc_);
-      }
-      else
-      {
-        SMethod method;
-        method.method_pb.set_mname(method_);
-        method.method_pb.set_req_type(req_type_);
-        method.method_pb.set_req_desc(req_desc_);
-        method.method_pb.set_resp_type(resp_type_);
-        method.method_pb.set_resp_desc(resp_desc_);
-        m_method_map[method_] = method;
-      }
-    }
-
-    // update descgate infos
-    return ApplyServiceToDescGate(method_, req_type_, req_desc_, resp_type_, resp_desc_);
-  }
-
-  // add callback function for server method calls
-  bool CServiceServerImpl::AddMethodCallback(const std::string& method_, const std::string& req_type_, const std::string& resp_type_, const MethodCallbackT& callback_)
-  {
-    std::string req_desc;
-    std::string resp_desc;
-    {
-      std::lock_guard<std::mutex> lock(m_method_map_sync);
-      auto iter = m_method_map.find(method_);
-      if (iter != m_method_map.end())
-      {
-        // should we overwrite this ?
-        iter->second.method_pb.set_mname(method_);
-        iter->second.method_pb.set_req_type(req_type_);
-        iter->second.method_pb.set_resp_type(resp_type_);
-        // set callback
         iter->second.callback = callback_;
-
-        // read descriptors back from existing service method
-        req_desc = iter->second.method_pb.req_desc();
-        resp_desc = iter->second.method_pb.resp_desc();
       }
-      else
-      {
-        SMethod method;
-        method.method_pb.set_mname(method_);
-        method.method_pb.set_req_type(req_type_);
-        method.method_pb.set_resp_type(resp_type_);
-        method.callback = callback_;
-        m_method_map[method_] = method;
-      }
+#endif
     }
+    else
+    {
+#ifndef NDEBUG
+      Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::SetMethodCallback: Registering new method: " + method_);
+#endif
+      SMethod method;
+      // method name
+      method.method.method_name = method_;
 
-    // update descgate infos
-    ApplyServiceToDescGate(method_, req_type_, req_desc, resp_type_, resp_desc);
+#if 0 // this is how it should look like if we do not use the old type and descriptor fields
+      // set data type and callback
+      method.method.request_datatype_information = method_info_.request_type;
+      method.method.response_datatype_information = method_info_.response_type;
+      method.callback = callback_;
+#else
+#endif
+      /////////////////////////////////////////////
+      // old types and descriptors
+      /////////////////////////////////////////////
+      method.method.req_type = method_info_.request_type.name;
+      method.method.resp_type = method_info_.response_type.name;
+
+      // we need to check these fields, because the v5 implementation is using SetMethodCallback with partially filled fields
+      if (!method_info_.request_type.descriptor.empty())  method.method.req_desc = method_info_.request_type.descriptor;
+      if (!method_info_.response_type.descriptor.empty()) method.method.resp_desc = method_info_.response_type.descriptor;
+
+      /////////////////////////////////////////////
+      // new types, encodings and descriptors
+      /////////////////////////////////////////////
+      method.method.request_datatype_information.name = method_info_.request_type.name;
+      method.method.response_datatype_information.name = method_info_.response_type.name;
+
+      // we need to check these fields, because the v5 implementation is using SetMethodCallback with partially filled fields
+      if (!method_info_.request_type.encoding.empty())    method.method.request_datatype_information.encoding = method_info_.request_type.encoding;
+      if (!method_info_.response_type.encoding.empty())   method.method.response_datatype_information.encoding = method_info_.response_type.encoding;
+      if (!method_info_.request_type.descriptor.empty())  method.method.request_datatype_information.descriptor = method_info_.request_type.descriptor;
+      if (!method_info_.response_type.descriptor.empty()) method.method.response_datatype_information.descriptor = method_info_.response_type.descriptor;
+
+      // we need to do this ugly hack here, because the v5 implementation is using SetMethodCallback with nullptr to update descriptions (AddDescription)
+      if (callback_ != nullptr)
+      {
+        method.callback = callback_;
+      }
+
+      // apply new method
+      m_method_map[method_] = method;
+    }
 
     return true;
   }
 
-  // remove callback function for server method calls
-  bool CServiceServerImpl::RemMethodCallback(const std::string& method_)
+  bool CServiceServerImpl::RemoveMethodCallback(const std::string & method_)
   {
-    std::lock_guard<std::mutex> lock(m_method_map_sync);
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::RemoveMethodCallback: Removing method callback for method: " + method_);
+#endif
+    const std::lock_guard<std::mutex> lock(m_method_map_mutex);
 
     auto iter = m_method_map.find(method_);
     if (iter != m_method_map.end())
     {
       m_method_map.erase(iter);
+#ifndef NDEBUG
+      Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::RemoveMethodCallback: Successfully removed method callback: " + method_);
+#endif
       return true;
     }
+
+    Logging::Log(Logging::log_level_warning, "CServiceServerImpl::RemoveMethodCallback: Attempt to remove non-existent method callback: " + method_);
     return false;
   }
 
-  // add callback function for server events
-  bool CServiceServerImpl::AddEventCallback(eCAL_Server_Event type_, ServerEventCallbackT callback_)
+  bool CServiceServerImpl::IsConnected() const
   {
-    if (!m_created) return false;
-
-    // store event callback
+    if (!m_created)
     {
-      std::lock_guard<std::mutex> lock(m_event_callback_map_sync);
 #ifndef NDEBUG
-      // log it
-      Logging::Log(log_level_debug2, m_service_name + "::CServiceServerImpl::AddEventCallback");
+      Logging::Log(Logging::log_level_debug2, "CServiceServerImpl: Service is not created; cannot check connection state for: " + m_service_name);
 #endif
-      m_event_callback_map[type_] = callback_;
+      return false;
     }
 
-    return true;
+    bool connected = m_tcp_server && m_tcp_server->is_connected();
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug2, "CServiceServerImpl: Connection state for service " + m_service_name + ": " + (connected ? "connected" : "disconnected"));
+#endif
+    return connected;
   }
 
-  // remove callback function for server events
-  bool CServiceServerImpl::RemEventCallback(eCAL_Server_Event type_)
+  void CServiceServerImpl::RegisterClient(const std::string& /*key_*/, const v5::SClientAttr& /*client_*/)
   {
-    if (!m_created) return false;
+    // client registration logic is not implemented, as it is not required for service servers
+  }
 
-    // reset event callback
-    {
-      std::lock_guard<std::mutex> lock(m_event_callback_map_sync);
+  Registration::Sample CServiceServerImpl::GetRegistration()
+  {
 #ifndef NDEBUG
-      // log it
-      Logging::Log(log_level_debug2, m_service_name + "::CServiceServerImpl::RemEventCallback");
+    Logging::Log(Logging::log_level_debug2, "CServiceServerImpl:::GetRegistration: Generating registration sample for: " + m_service_name);
 #endif
-      m_event_callback_map[type_] = nullptr;
+    return GetRegistrationSample();
+  }
+
+  SServiceId CServiceServerImpl::GetServiceId() const
+  {
+    SServiceId service_id;
+
+    service_id.service_id.entity_id = m_service_id;
+    service_id.service_id.process_id = Process::GetProcessID();
+    service_id.service_id.host_name = Process::GetHostName();
+    service_id.service_name = m_service_name;
+
+    return service_id;
+  }
+
+  std::string CServiceServerImpl::GetServiceName() const
+  {
+    return m_service_name;
+  }
+
+  void CServiceServerImpl::Start()
+  {
+    if (m_created)
+    {
+      Logging::Log(Logging::log_level_warning, "CServiceServerImpl: Service is already started: " + m_service_name);
+      return;
     }
 
-    return true;
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl: Starting service server for: " + m_service_name);
+#endif
+
+    // Create service ID
+    m_service_id = std::chrono::steady_clock::now().time_since_epoch().count();
+
+    // Get global server manager
+    auto server_manager = eCAL::service::ServiceManager::instance()->get_server_manager();
+    if (!server_manager || server_manager->is_stopped())
+    {
+      Logging::Log(Logging::log_level_error, "CServiceServerImpl: Failed to start service: Global server manager is unavailable or stopped for: " + m_service_name);
+      return;
+    }
+
+    // Create callback functions
+    const ecal_service::Server::EventCallbackT event_callback =
+      [weak_me = std::weak_ptr<CServiceServerImpl>(shared_from_this())](ecal_service::ServerEventType event, const std::string& message)
+      {
+        if (auto me = weak_me.lock())
+        {
+          SServiceId service_id;
+          service_id.service_name = me->m_service_name;
+          service_id.service_id.entity_id = me->m_service_id;
+          // TODO: Also fill process ID and hostname?
+          me->NotifyEventCallback(service_id, event == ecal_service::ServerEventType::Connected
+            ? eServerEvent::connected
+            : eServerEvent::disconnected, message);
+        }
+      };
+
+    const ecal_service::Server::ServiceCallbackT service_callback =
+      [weak_me = std::weak_ptr<CServiceServerImpl>(shared_from_this())](const std::shared_ptr<const std::string>& request, const std::shared_ptr<std::string>& response) -> int
+      {
+        if (auto me = weak_me.lock())
+          return me->RequestCallback(*request, *response);
+        return -1;
+      };
+
+    // Start service
+    m_tcp_server = server_manager->create_server(1, 0, service_callback, true, event_callback);
+
+    if (!m_tcp_server)
+    {
+      Logging::Log(Logging::log_level_error, "CServiceServerImpl: Failed to create TCP server for service: " + m_service_name);
+      return;
+    }
+
+    // Send registration sample
+    if (g_registration_provider())
+      g_registration_provider()->RegisterSample(GetRegistrationSample());
+
+    m_created = true;
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl: Service started successfully: " + m_service_name);
+#endif
   }
 
-  // check connection state
-  bool CServiceServerImpl::IsConnected()
+  void CServiceServerImpl::Stop()
   {
-    if (!m_created) return false;
-    return m_tcp_server.IsConnected();
+    if (!m_created)
+    {
+      Logging::Log(Logging::log_level_warning, "CServiceServerImpl::Stop: Service is not running; cannot stop: " + m_service_name);
+      return;
+    }
+
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::Stop: Stopping service server for: " + m_service_name);
+#endif
+
+    // Stop TCP server
+    if (m_tcp_server)
+    {
+      m_tcp_server->stop();
+#ifndef NDEBUG
+      Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::Stop: TCP server stopped for: " + m_service_name);
+#endif
+    }
+    m_tcp_server.reset();
+
+    // Reset method callbacks
+    {
+      const std::lock_guard<std::mutex> lock(m_method_map_mutex);
+      m_method_map.clear();
+    }
+
+    // Reset event callback
+    {
+      const std::lock_guard<std::mutex> lock(m_event_callback_mutex);
+      m_event_callback = nullptr;
+    }
+
+    // Send unregistration sample
+    if (g_registration_provider())
+      g_registration_provider()->UnregisterSample(GetUnregistrationSample());
+
+    m_created = false;
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::Stop: Service stopped successfully: " + m_service_name);
+#endif
   }
 
-  // called by the eCAL::CServiceGate to register a client
-  void CServiceServerImpl::RegisterClient(const std::string& /*key_*/, const SClientAttr& /*client_*/)
+  Registration::Sample CServiceServerImpl::GetRegistrationSample()
   {
-    // not used yet
-  }
-
-  // called by eCAL:CServiceGate every second to update registration layer
-  void CServiceServerImpl::RefreshRegistration()
-  {
-    if (!m_created)             return;
-    if (m_service_name.empty()) return;
+    Registration::Sample ecal_reg_sample;
+    ecal_reg_sample.cmd_type = bct_reg_service;
 
     // might be zero in contruction phase
-    unsigned short server_tcp_port(m_tcp_server.GetTcpPort());
-    if (server_tcp_port == 0) return;
+    const unsigned short server_tcp_port(m_tcp_server ? m_tcp_server->get_port() : 0);
+    if (server_tcp_port == 0) return ecal_reg_sample;
 
-    // create service registration sample
-    eCAL::pb::Sample sample;
-    sample.set_cmd_type(eCAL::pb::bct_reg_service);
-    auto service_mutable_service = sample.mutable_service();
-    service_mutable_service->set_hname(Process::GetHostName());
-    service_mutable_service->set_pname(Process::GetProcessName());
-    service_mutable_service->set_uname(Process::GetUnitName());
-    service_mutable_service->set_pid(Process::GetProcessID());
-    service_mutable_service->set_sname(m_service_name);
-    service_mutable_service->set_sid(m_service_id);
-    service_mutable_service->set_tcp_port(server_tcp_port);
+    auto& identifier = ecal_reg_sample.identifier;
+    identifier.entity_id = m_service_id;
+    identifier.process_id = Process::GetProcessID();
+    identifier.host_name = Process::GetHostName();
 
-    // add methods
+    auto& service = ecal_reg_sample.service;
+    service.version = m_server_version;
+    service.process_name = Process::GetProcessName();
+    service.unit_name = Process::GetUnitName();
+    service.service_name = m_service_name;
+    service.tcp_port_v0 = 0;
+    service.tcp_port_v1 = server_tcp_port;
+
     {
-      std::lock_guard<std::mutex> lock(m_method_map_sync);
-      for (auto iter : m_method_map)
+      const std::lock_guard<std::mutex> lock(m_method_map_mutex);
+      for (const auto& iter : m_method_map)
       {
-        auto method = service_mutable_service->add_methods();
-        method->set_mname(iter.first);
-        method->set_req_type(iter.second.method_pb.req_type());
-        method->set_req_desc(iter.second.method_pb.req_desc());
-        method->set_resp_type(iter.second.method_pb.resp_type());
-        method->set_resp_desc(iter.second.method_pb.resp_desc());
-        method->set_call_count(iter.second.method_pb.call_count());
+        Service::Method method;
+        method.method_name = iter.first;
+
+        // old type and descriptor fields
+        method.req_type = iter.second.method.req_type;
+        method.req_desc = iter.second.method.req_desc;
+        method.resp_type = iter.second.method.resp_type;
+        method.resp_desc = iter.second.method.resp_desc;
+
+        // new type and descriptor fields
+        method.request_datatype_information = iter.second.method.request_datatype_information;
+        method.response_datatype_information = iter.second.method.response_datatype_information;
+
+        method.call_count = iter.second.method.call_count;
+        service.methods.push_back(method);
       }
     }
 
-    // register entity
-    if (g_registration_provider()) g_registration_provider()->RegisterServer(m_service_name, m_service_id, sample, false);
+    return ecal_reg_sample;
   }
 
-  int CServiceServerImpl::RequestCallback(const std::string& request_, std::string& response_)
+  Registration::Sample CServiceServerImpl::GetUnregistrationSample()
   {
+    Registration::Sample ecal_reg_sample;
+    ecal_reg_sample.cmd_type = bct_unreg_service;
+
+    auto& identifier = ecal_reg_sample.identifier;
+    identifier.entity_id = m_service_id;
+    identifier.process_id = Process::GetProcessID();
+    identifier.host_name = Process::GetHostName();
+
+    auto& service = ecal_reg_sample.service;
+    service.version = m_server_version;
+    service.process_name = Process::GetProcessName();
+    service.unit_name = Process::GetUnitName();
+    service.service_name = m_service_name;
+
+    return ecal_reg_sample;
+  }
+
+  int CServiceServerImpl::RequestCallback(const std::string & request_pb_, std::string & response_pb_)
+  {
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug2, "CServiceServerImpl::RequestCallback: Processing request callback for: " + m_service_name);
+#endif
+
     // prepare response
-    eCAL::pb::Response response_pb;
-    auto* response_pb_mutable_header = response_pb.mutable_header();
-    response_pb_mutable_header->set_hname(eCAL::Process::GetHostName());
-    response_pb_mutable_header->set_sname(m_service_name);
-    response_pb_mutable_header->set_sid(m_service_id);
+    Service::Response response;
+    auto& response_header = response.header;
+    response_header.host_name = Process::GetHostName();
+    response_header.service_name = m_service_name;
+    response_header.service_id = std::to_string(m_service_id); // TODO: Service ID currently defined as string, should be integer as well
 
     // try to parse request
-    eCAL::pb::Request  request_pb;
-    if (!request_pb.ParseFromString(request_))
+    Service::Request request;
+    if (!DeserializeFromBuffer(request_pb_.c_str(), request_pb_.size(), request))
     {
-      Logging::Log(log_level_error, m_service_name + "::CServiceServerImpl::RequestCallback failed to parse request message");
+      Logging::Log(Logging::log_level_error, m_service_name + "::CServiceServerImpl::RequestCallback: Failed to parse request message");
 
-      response_pb_mutable_header->set_state(eCAL::pb::ServiceHeader_eCallState_failed);
-      std::string emsg = "Service '" + m_service_name + "' request message could not be parsed.";
-      response_pb_mutable_header->set_error(emsg);
+      response_header.state = Service::eMethodCallState::failed;
+      const std::string emsg = "Service '" + m_service_name + "' request message could not be parsed.";
+      response_header.error = emsg;
 
+      // TODO: The next version of the service protocol should omit the double-serialization (i.e. copying the binary data in a protocol buffer and then serializing that again)
       // serialize response and return "request message could not be parsed"
-      response_ = response_pb.SerializeAsString();
-      
+      SerializeToBuffer(response, response_pb_);
+
+      // Return Failed (error_code = -1), as parsing the request failed. The
       // return value is not propagated to the remote caller.
-      return 0;
+      return -1;
     }
 
     // get method
     SMethod method;
-    auto& request_pb_header = request_pb.header();
-    response_pb_mutable_header->set_mname(request_pb_header.mname());
+    const auto& request_header = request.header;
+    response_header.method_name = request_header.method_name;
     {
-      std::lock_guard<std::mutex> lock(m_method_map_sync);
-
-      auto requested_method_iterator = m_method_map.find(request_pb_header.mname());
+      const std::lock_guard<std::mutex> lock(m_method_map_mutex);
+      auto requested_method_iterator = m_method_map.find(request_header.method_name);
       if (requested_method_iterator == m_method_map.end())
       {
         // set method call state 'failed'
-        response_pb_mutable_header->set_state(eCAL::pb::ServiceHeader_eCallState_failed);
+        response_header.state = Service::eMethodCallState::failed;
         // set error message
-        std::string emsg = "Service '" + m_service_name + "' has no method named '" + request_pb_header.mname() + "'";
-        response_pb_mutable_header->set_error(emsg);
+        const std::string emsg = "CServiceServerImpl: Service '" + m_service_name + "' has no method named '" + request_header.method_name + "'";
+        response_header.error = emsg;
 
+        // TODO: The next version of the service protocol should omit the double-serialization (i.e. copying the binary data in a protocol buffer and then serializing that again)
         // serialize response and return "method not found"
-        response_ = response_pb.SerializeAsString();
+        SerializeToBuffer(response, response_pb_);
 
         // Return Success (error_code = 0), as parsing the request worked. The
         // return value is not propagated to the remote caller.
@@ -330,86 +467,47 @@ namespace eCAL
       }
       else
       {
-        // increase call count
-        auto call_count = requested_method_iterator->second.method_pb.call_count();
-        requested_method_iterator->second.method_pb.set_call_count(++call_count);
-
-        // store (copy) the method object, so we can release the mutex before calling the function
+        requested_method_iterator->second.method.call_count++;
         method = requested_method_iterator->second;
       }
     }
 
     // execute method (outside lock guard)
-    const std::string& request_s = request_pb.request();
+    const std::string& request_s = request.request;
     std::string response_s;
-    int service_return_state = method.callback(method.method_pb.mname(), method.method_pb.req_type(), method.method_pb.resp_type(), request_s, response_s);
+    const SServiceMethodInformation method_info{
+      method.method.method_name,
+      method.method.request_datatype_information,
+      method.method.response_datatype_information
+    };
+    const int service_return_state = method.callback(method_info, request_s, response_s);
 
     // set method call state 'executed'
-    response_pb_mutable_header->set_state(eCAL::pb::ServiceHeader_eCallState_executed);
+    response_header.state = Service::eMethodCallState::executed;
     // set method response and return state
-    response_pb.set_response(response_s);
-    response_pb.set_ret_state(service_return_state);
+    response.response = response_s;
+    response.ret_state = service_return_state;
 
-    // serialize response and return
-    response_ = response_pb.SerializeAsString();
+    // TODO: The next version of the service protocol should omit the double-serialization (i.e. copying the binary data in a protocol buffer and then serializing that again)
+    // serialize response and return "method not found"
+    SerializeToBuffer(response, response_pb_);
 
     // return success (error code 0)
     return 0;
   }
 
-  void CServiceServerImpl::EventCallback(eCAL_Server_Event event_, const std::string& /*message_*/)
+  void CServiceServerImpl::NotifyEventCallback(const SServiceId & service_id_, eServerEvent event_type_, const std::string& /*message_*/)
   {
-    bool mode_changed(false);
-    if (m_connected)
-    {
-      if (!m_tcp_server.IsConnected())
-      {
-        mode_changed = true;
-        m_connected  = false;
-      }
-    }
-    else
-    {
-      if (m_tcp_server.IsConnected())
-      {
-        mode_changed = true;
-        m_connected  = true;
-      }
-    }
+#ifndef NDEBUG
+    Logging::Log(Logging::log_level_debug1, "CServiceServerImpl::NotifyEventCallback: Notifying event callback for: " + m_service_name + " Event Type: " + to_string(event_type_));
+#endif
 
-    if (mode_changed)
-    {
-      // call event
-      std::lock_guard<std::mutex> lock_cb(m_event_callback_map_sync);
-      auto e_iter = m_event_callback_map.find(event_);
-      if (e_iter != m_event_callback_map.end())
-      {
-        SServerEventCallbackData sdata;
-        sdata.type = event_;
-        sdata.time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        (e_iter->second)(m_service_name.c_str(), &sdata);
-      }
-    }
+    const std::lock_guard<std::mutex> lock_cb(m_event_callback_mutex);
+    if (m_event_callback == nullptr) return;
+
+    SServerEventCallbackData callback_data;
+    callback_data.type = event_type_;
+    callback_data.time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    m_event_callback(service_id_, callback_data);
   }
-
-  bool CServiceServerImpl::ApplyServiceToDescGate(const std::string& method_name_
-    , const std::string& req_type_name_
-    , const std::string& req_type_desc_
-    , const std::string& resp_type_name_
-    , const std::string& resp_type_desc_)
-  {
-    if (g_descgate())
-    {
-      // Calculate the quality of the current info
-      ::eCAL::CDescGate::QualityFlags quality = ::eCAL::CDescGate::QualityFlags::NO_QUALITY;
-      if (!(req_type_name_.empty() && resp_type_name_.empty()))
-        quality |= ::eCAL::CDescGate::QualityFlags::TYPE_AVAILABLE;
-      if (!(req_type_desc_.empty() && resp_type_desc_.empty()))
-        quality |= ::eCAL::CDescGate::QualityFlags::DESCRIPTION_AVAILABLE;
-      quality |= ::eCAL::CDescGate::QualityFlags::INFO_COMES_FROM_THIS_PROCESS;
-
-      return g_descgate()->ApplyServiceDescription(m_service_name, method_name_, req_type_name_, req_type_desc_, resp_type_name_, resp_type_desc_, quality);
-    }
-    return false;
-  }
-};
+}

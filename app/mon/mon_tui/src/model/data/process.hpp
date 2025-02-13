@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,16 +38,11 @@ struct Process
     NONE, REALTIME, REPLAY
   };
 
-  int32_t pid;
+  int32_t process_id;
   std::string name;
   std::string host_name;
   std::string unit_name;
   std::string params;
-  int64_t memory_usage;
-  float cpu_usage;
-  float user_time;
-  int64_t data_sent_bytes;
-  int64_t data_recieved_bytes;
   Severity severity;
   SeverityLevel severity_level;
   std::string state_info;

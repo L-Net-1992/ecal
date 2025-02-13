@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include <chrono>
 
 #include <ecal/ecal.h>
-#include <ecal/ecal_monitoring.h>
+#include <ecal/monitoring.h>
 
 #include <functional>
 #include <string>
@@ -99,7 +99,7 @@ class MonitorModel
     }
   }
 
-  Process::TimeSyncState TimeSyncState(eCAL::pb::eTSyncState state)
+  Process::TimeSyncState TimeSyncState(eCAL::pb::eTimeSyncState state)
   {
     switch(state)
     {
@@ -120,31 +120,7 @@ class MonitorModel
     return Topic::Direction::SUBSCRIBER;
   }
 
-  Topic::QOSHistoryKind TopicHistoryKind(eCAL::pb::QOS_eQOSPolicy_HistoryKind kind)
-  {
-    switch(kind)
-    {
-      case eCAL::pb::QOS_eQOSPolicy_HistoryKind_keep_all_history_qos:
-        return Topic::QOSHistoryKind::KEEP_ALL;
-      case eCAL::pb::QOS_eQOSPolicy_HistoryKind_keep_last_history_qos:
-      default:
-        return Topic::QOSHistoryKind::KEEP_LAST;
-    }
-  }
-
-  Topic::QOSReliability TopicReliability(eCAL::pb::QOS_eQOSPolicy_Reliability reliability)
-  {
-    switch(reliability)
-    {
-      case eCAL::pb::QOS_eQOSPolicy_Reliability_reliable_reliability_qos:
-        return Topic::QOSReliability::RELIABLE;
-      case eCAL::pb::QOS_eQOSPolicy_Reliability_best_effort_reliability_qos:
-      default:
-        return Topic::QOSReliability::BEST_EFFORT;
-    }
-  }
-
-  Topic::TransportLayer TopicTransportLayer(eCAL::pb::eTLayerType layer)
+  Topic::TransportLayer TopicTransportLayer(eCAL::pb::eTransportLayerType layer)
   {
     switch(layer)
     {
@@ -156,8 +132,6 @@ class MonitorModel
         return Topic::TransportLayer::TCP;
       case eCAL::pb::tl_ecal_udp_mc:
         return Topic::TransportLayer::UDP_MC;
-      case eCAL::pb::tl_inproc:
-        return Topic::TransportLayer::INPROC;
       case eCAL::pb::tl_none:
       default:
         return Topic::TransportLayer::NONE;
@@ -176,35 +150,30 @@ class MonitorModel
     std::unordered_map<std::string, Host*> hosts_map;
     for(auto &p: *mon_.mutable_processes())
     {
-      if(hosts_map.find(p.hname()) == hosts_map.end())
+      if(hosts_map.find(p.host_name()) == hosts_map.end())
       {
         auto &host = hosts.emplace_back();
-        host.name = p.hname();
+        host.name = p.host_name();
         hosts_map[host.name] = &host;
       }
       auto &process = processes.emplace_back();
-      process.pid = p.pid();
-      process.name = std::move(*p.mutable_pname());
-      process.host_name = std::move(*p.mutable_hname());
-      process.unit_name = std::move(*p.mutable_uname());
-      process.params = std::move(*p.mutable_pparam());
-      process.memory_usage = p.pmemory();
-      process.cpu_usage = p.pcpu();;
-      process.user_time = p.usrptime();
-      process.data_sent_bytes = p.datawrite();
-      process.data_recieved_bytes = p.dataread();
+      process.process_id = p.process_id();
+      process.name = std::move(*p.mutable_process_name());
+      process.host_name = std::move(*p.mutable_host_name());
+      process.unit_name = std::move(*p.mutable_unit_name());
+      process.params = std::move(*p.mutable_process_parameter());
       process.severity = Severity(p.state().severity());
       process.severity_level = SeverityLevel(p.state().severity_level());
       process.state_info = std::move(*p.mutable_state()->mutable_info());
-      process.time_sync_state = TimeSyncState(p.tsync_state());
-      process.time_sync_mod_name = std::move(*p.mutable_tsync_mod_name());
+      process.time_sync_state = TimeSyncState(p.time_sync_state());
+      process.time_sync_mod_name = std::move(*p.mutable_time_sync_module_name());
       process.component_init_info = std::move(*p.mutable_component_init_info());
       process.ecal_runtime_version = std::move(*p.mutable_ecal_runtime_version());
     }
 
     for (auto &t : *mon_.mutable_topics())
     {
-      auto &name = t.hname();
+      auto &name = t.host_name();
       auto &direction = t.direction();
       auto found = hosts_map.find(name);
       if(found != hosts_map.end())
@@ -213,64 +182,56 @@ class MonitorModel
         if(direction == "publisher")
         {
           host->publisher_count++;
-          host->data_sent_bytes += ((long long)t.tsize() * (long long)t.dfreq()) / 1000;
+          host->data_sent_bytes += ((long long)t.topic_size() * (long long)t.data_frequency()) / 1000;
         }
         else if(direction == "subscriber")
         {
           host->subscriber_count++;
-          host->data_received_bytes += ((long long)t.tsize() * (long long)t.dfreq()) / 1000;
+          host->data_received_bytes += ((long long)t.topic_size() * (long long)t.data_frequency()) / 1000;
         }
       }
       auto &topic = topics.emplace_back();
-      topic.registration_clock = t.rclock();
-      topic.host_id = t.hid();
-      topic.host_name = std::move(*t.mutable_hname());
-      topic.pid = t.pid();
-      topic.process_name = std::move(*t.mutable_pname());
-      topic.unit_name = std::move(*t.mutable_uname());
-      topic.id = std::move(*t.mutable_tid());
-      topic.name = std::move(*t.mutable_tname());
+      topic.registration_clock = t.registration_clock();
+      topic.host_name = std::move(*t.mutable_host_name());
+      topic.process_id = t.process_id();
+      topic.process_name = std::move(*t.mutable_process_name());
+      topic.unit_name = std::move(*t.mutable_unit_name());
+      topic.id = std::move(*t.mutable_topic_id());
+      topic.name = std::move(*t.mutable_topic_name());
       topic.direction = TopicDirection(t.direction());
-      topic.type = std::move(*t.mutable_ttype());
-      topic.type_descriptor = std::move(*t.mutable_tdesc());
-      topic.history_kind = TopicHistoryKind(t.tqos().history());
-      topic.history_depth = t.tqos().history_depth();
-      topic.reliability = TopicReliability(t.tqos().reliability());
-      for(auto &tl: t.tlayer())
+      topic.encoding = std::move(*t.mutable_datatype_information()->mutable_encoding());
+      topic.type = std::move(*t.mutable_datatype_information()->mutable_name());
+      topic.type_descriptor = std::move(*t.mutable_datatype_information()->mutable_descriptor_information());
+      for(auto &tl: t.transport_layer())
       {
-        topic.transport_layers.emplace_back(TopicTransportLayer(tl.type()));
+        if (tl.active())
+        {
+          topic.transport_layers.emplace_back(TopicTransportLayer(tl.type()));
+        }
       }
-      topic.size = t.tsize();
-      topic.local_connections_count = t.connections_loc();
-      topic.external_connections_count = t.connections_ext();
+      topic.size = t.topic_size();
+      topic.local_connections_count = t.connections_local();
+      topic.external_connections_count = t.connections_external();
       topic.message_drops = t.message_drops();
-      topic.data_id = t.did();
-      topic.data_clock = t.dclock();
-      topic.data_frequency = t.dfreq();
-      for(auto &attr: *t.mutable_attr())
-      {
-        topic.attributes.emplace(
-          std::pair<std::string, std::string>(
-            std::move(attr.first), std::move(attr.second)
-          )
-        );
-      }
+      topic.data_id = t.data_id();
+      topic.data_clock = t.data_clock();
+      topic.data_frequency = t.data_frequency();
     }
 
     for(auto &s: *mon_.mutable_services())
     {
       auto &service = services.emplace_back();
-      service.id = s.sid();
-      service.name = std::move(*s.mutable_sname());
-      service.host_name = std::move(*s.mutable_hname());
-      service.process_name = std::move(*s.mutable_pname());
-      service.unit_name = std::move(*s.mutable_uname());
-      service.registration_clock = s.rclock();
-      service.tcp_port = s.tcp_port();
+      service.id = s.service_id();
+      service.name = std::move(*s.mutable_service_name());
+      service.host_name = std::move(*s.mutable_host_name());
+      service.process_name = std::move(*s.mutable_process_name());
+      service.unit_name = std::move(*s.mutable_unit_name());
+      service.registration_clock = s.registration_clock();
+      service.tcp_port = s.tcp_port_v1();
       for(auto &m: *s.mutable_methods())
       {
         auto &method = service.methods.emplace_back();
-        method.name = std::move(*m.mutable_mname());
+        method.name = std::move(*m.mutable_method_name());
         method.request_type = std::move(*m.mutable_req_type());
         method.response_type = std::move(*m.mutable_resp_type());
         method.call_count = m.call_count();

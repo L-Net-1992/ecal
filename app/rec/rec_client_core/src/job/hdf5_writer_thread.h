@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,8 +93,8 @@ namespace eCAL
       bool                                  new_topic_info_map_available_;      /**< Telling that a new topic info map has been set from the outside. */
       mutable RecHdf5JobStatus              last_status_;
 
-      mutable std::mutex                   hdf5_writer_mutex_;
-      std::unique_ptr<eCAL::eh5::HDF5Meas> hdf5_writer_;
+      mutable std::mutex                                    hdf5_writer_mutex_;
+      std::unique_ptr<eCAL::eh5::v2::HDF5Meas>              hdf5_writer_;
 
 
       std::atomic<bool> flushing_;

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,14 @@
 
 #include "measurement_container.h"
 
+#include <ecal/util.h>
+#include <ecalhdf5/eh5_meas.h>
+
 #include <algorithm>
 #include <math.h>
 #include <stdlib.h>
 
-MeasurementContainer::MeasurementContainer(std::shared_ptr<eCAL::eh5::HDF5Meas> hdf5_meas, const std::string& meas_dir, bool use_receive_timestamp)
+MeasurementContainer::MeasurementContainer(std::shared_ptr<eCAL::eh5::v2::HDF5Meas> hdf5_meas, const std::string& meas_dir, bool use_receive_timestamp)
   : hdf5_meas_             (hdf5_meas)
   , meas_dir_              (meas_dir)
   , use_receive_timestamp_ (use_receive_timestamp)
@@ -48,7 +51,7 @@ void MeasurementContainer::CreateFrameTable()
   auto channel_names = hdf5_meas_->GetChannelNames();
   for (auto& channel_name : channel_names)
   {
-    eCAL::eh5::EntryInfoSet entry_info_set;
+    eCAL::experimental::measurement::base::EntryInfoSet entry_info_set;
     if (hdf5_meas_->GetEntriesInfo(channel_name, entry_info_set))
     {
       for (auto& entry_info : entry_info_set)
@@ -83,7 +86,7 @@ void MeasurementContainer::CalculateEstimatedSizeForChannels()
   auto channel_names = hdf5_meas_->GetChannelNames();
   for (auto& channel_name : channel_names)
   {
-    eCAL::eh5::EntryInfoSet entry_info_set;
+    eCAL::experimental::measurement::base::EntryInfoSet entry_info_set;
     if (hdf5_meas_->GetEntriesInfo(channel_name, entry_info_set))
     {
       auto size = entry_info_set.size();
@@ -128,10 +131,12 @@ void MeasurementContainer::CreatePublishers(const std::map<std::string, std::str
   // Create new publishers
   for (const auto& channel_mapping : publisher_map)
   {
-    auto topic_type        = hdf5_meas_->GetChannelType(channel_mapping.first);
-    auto topic_description = hdf5_meas_->GetChannelDescription(channel_mapping.first);
-
-    publisher_map_.emplace(channel_mapping.first, PublisherInfo(channel_mapping.second, topic_type, topic_description));
+    auto topic_info        = hdf5_meas_->GetChannelDataTypeInformation(channel_mapping.first);
+    eCAL::SDataTypeInformation data_type_info;
+    data_type_info.name = topic_info.name;
+    data_type_info.encoding = topic_info.encoding;
+    data_type_info.descriptor = topic_info.descriptor;
+    publisher_map_.emplace(channel_mapping.first, PublisherInfo(channel_mapping.second, data_type_info));
   }
 
   // Assign publishers to entries
@@ -150,10 +155,6 @@ void MeasurementContainer::CreatePublishers(const std::map<std::string, std::str
 void MeasurementContainer::DeInitializePublishers()
 {
   // Clear the publisher map
-  for (auto& publisher_info : publisher_map_)
-  {
-    publisher_info.second.publisher_.Destroy();
-  }
   publisher_map_.clear();
 
   // Remove pointers to publishers from all frames
@@ -182,7 +183,7 @@ bool MeasurementContainer::PublishersCreated() const
 bool MeasurementContainer::PublishFrame(long long index)
 {
   // Check that the user created the publishers before publishing a frame
-  if (!publishers_initialized_ || (index < 0) || index > GetFrameCount())
+  if (!publishers_initialized_ || (index < 0) || index >= GetFrameCount())
     return false;
 
   if (frame_table_[index].publisher_info_)
@@ -214,7 +215,8 @@ bool MeasurementContainer::PublishFrame(long long index)
         {
           timestamp_usecs = std::chrono::duration_cast<std::chrono::microseconds>(frame_table_[index].send_timestamp_.time_since_epoch()).count();
         }
-        frame_table_[index].publisher_info_->publisher_.SetID(frame_table_[index].send_id_);
+        // this is not supported by the eCAL v6 API
+        //frame_table_[index].publisher_info_->publisher_.SetID(frame_table_[index].send_id_);
         frame_table_[index].publisher_info_->publisher_.Send(send_buffer_, data_size, timestamp_usecs);
         frame_table_[index].publisher_info_->message_counter_++;
         return true;
@@ -306,7 +308,12 @@ double MeasurementContainer::GetMaxTimestampOfChannel(const std::string& channel
 
 std::string MeasurementContainer::GetChannelType(const std::string& channel_name) const
 {
-  return hdf5_meas_->GetChannelType(channel_name);
+  return hdf5_meas_->GetChannelDataTypeInformation(channel_name).name;
+}
+
+std::string MeasurementContainer::GetChannelEncoding(const std::string& channel_name) const
+{
+  return hdf5_meas_->GetChannelDataTypeInformation(channel_name).encoding;
 }
 
 size_t MeasurementContainer::GetChannelCumulativeEstimatedSize(const std::string& channel_name) const
@@ -451,7 +458,7 @@ std::map<std::string, ContinuityReport> MeasurementContainer::CreateContinuityRe
   auto channel_names = hdf5_meas_->GetChannelNames();
   for (auto& channel_name : channel_names)
   {
-    eCAL::eh5::EntryInfoSet entry_info_set;
+    eCAL::experimental::measurement::base::EntryInfoSet entry_info_set;
     if (hdf5_meas_->GetEntriesInfo(channel_name, entry_info_set))
     {
 

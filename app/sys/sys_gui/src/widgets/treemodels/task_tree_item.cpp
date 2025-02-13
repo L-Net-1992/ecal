@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,11 +89,11 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
     {
       switch (task_->GetVisibility())
       {
-      case eCAL_Process_eStartMode::proc_smode_hidden:
+      case eCAL::Process::eStartMode::hidden:
         return "Hidden";
-      case eCAL_Process_eStartMode::proc_smode_maximized:
+      case eCAL::Process::eStartMode::maximized:
         return "Maximized";
-      case eCAL_Process_eStartMode::proc_smode_minimized:
+      case eCAL::Process::eStartMode::minimized:
         return "Minimized";
       default:
         return "Normal";
@@ -121,17 +121,17 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
       TaskState restart_at_severity = task_->GetRestartAtSeverity();
       restart_at_severity.ToString(state, level);
       return QString(state.c_str()) +
-        (restart_at_severity.severity != eCAL_Process_eSeverity::proc_sev_unknown ?
-          " (Lv " + QString::number(restart_at_severity.severity_level) + ")" :
+        (restart_at_severity.severity != eCAL::Process::eSeverity::unknown ?
+          " (Lv " + QString::number(static_cast<int>(restart_at_severity.severity_level)) + ")" :
           "");
     }
     else if (column == Columns::CURRENT_PID)
     {
       auto pid_list = task_->GetPids();
       QStringList pid_strings;
-      for (auto pid : pid_list)
+      for (auto process_id : pid_list)
       {
-        pid_strings.push_back(QString::number(pid));
+        pid_strings.push_back(QString::number(process_id));
       }
       return pid_strings.join(", ");
     }
@@ -144,8 +144,8 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
       std::string state, level;
       task_->GetMonitoringTaskState().ToString(state, level);
       return QString(state.c_str()) +
-        (task_->GetMonitoringTaskState().severity != eCAL_Process_eSeverity::proc_sev_unknown ?
-          " (Lv " + QString::number(task_->GetMonitoringTaskState().severity_level) + ")" :
+        (task_->GetMonitoringTaskState().severity != eCAL::Process::eSeverity::unknown ?
+          " (Lv " + QString::number(static_cast<int>(task_->GetMonitoringTaskState().severity_level)) + ")" :
           "");
     }
     else if (column == Columns::INFO)
@@ -154,7 +154,7 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
     }
     else
     {
-      return QVariant::Invalid;
+      return QVariant(); // Invalid QVariant
     }
   }
 
@@ -201,16 +201,16 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
       switch (state.severity)
       {
-      case eCAL_Process_eSeverity::proc_sev_healthy:
+      case eCAL::Process::eSeverity::healthy:
         return QColor(80, 225, 120);
-      case eCAL_Process_eSeverity::proc_sev_warning:
+      case eCAL::Process::eSeverity::warning:
         return QColor(240, 240, 50);
-      case eCAL_Process_eSeverity::proc_sev_critical:
+      case eCAL::Process::eSeverity::critical:
         return QColor(250, 130, 0);
-      case eCAL_Process_eSeverity::proc_sev_failed:
+      case eCAL::Process::eSeverity::failed:
         return QColor(240, 20, 20);
       default:
-        return QVariant::Invalid;
+        return QVariant(); // Invalid QVariant
       }
     }
   }
@@ -229,7 +229,7 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
       }
       else
       {
-        return QVariant::Invalid;
+        return QVariant(); // Invalid QVariant
       }
     }
     else if (options.use_localhost_for_all_tasks)
@@ -242,7 +242,7 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
       }
       else
       {
-        return QVariant::Invalid;
+        return QVariant(); // Invalid QVariant
       }
     }
   }
@@ -323,7 +323,7 @@ QVariant TaskTreeItem::data(Columns column, Qt::ItemDataRole role) const
     }
   }
 
-  return QVariant::Invalid;
+  return QVariant(); // Invalid QVariant
 
 }
 

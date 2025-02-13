@@ -27,28 +27,20 @@ class MessageSubscriber(object):
   :func:`~subscriber.MessageSubscriber.set_callback` and
   :func:`~subscriber.MessageSubscriber.rem_callback` functions.
   """
-  
-  def __init__(self, name, topic_type=""):
-    self.c_subscriber = ecal_core.subscriber(name, topic_type)
 
-  def set_qos_historykind(self, qpolicy, depth):
-    """ set quality of service historykind mode and depth
+  def __init__(self, topic_name, topic_type="", topic_encoding="", topic_descriptor=b""):
+    """ Initialize a message subscriber
 
-    :param qpolicy: 0 = keep_last_history_qos, 1 = keep_all_history_qos
-    :param depth:   history kind buffer depth
-
+    :param topic_name:       topic name of the subscriber
+    :type topic_name:        string
+    :param topic_type:       optional, type of the transported payload, eg a a string, a protobuf message
+    :type topic_type:        string
+    :param topic_encoding:   optional type encoding (e.g. base, proto ..)
+    :type topic_encoding:    string
+    :param topic_descriptor: optional, a string which can be registered with ecal to allow io reflection features
+    :type topic_descriptor:  bytes
     """
-
-    return self.c_subscriber.set_qos_historykind(qpolicy, depth)
-
-  def set_qos_reliability(self, topic_handle, qpolicy):
-    """ set quality of service reliability mode
-
-    :param qpolicy: 0 = best_effort_reliability_qos, 1 = reliable_reliability_qos
-
-    """
-
-    return self.c_subscriber.set_qos_reliability(topic_handle, qpolicy)
+    self.c_subscriber = ecal_core.subscriber(topic_name, topic_type, topic_encoding, topic_descriptor)
 
   def receive(self, timeout=0):
     """ receive subscriber content with timeout
@@ -80,17 +72,10 @@ class ProtoSubscriber(MessageSubscriber):
   """Spezialized subscriber that subscribes to protobuf messages
   """
   def __init__(self, name, type_protobuf):
-    """ receive subscriber content with timeout
-
-    :param name:           name on which the subscriber listens to traffic
-    :type name:            string
-    :param type_protobuf:  type of the protobuf object, which the subscriber will receive
-
-    """
-    topic_type = "proto:" + type_protobuf.DESCRIPTOR.full_name
-    #topic_desc = pb_helper.get_descriptor_from_type(type_protobuf)
-    # ProtoSubscriber only takes two arguments, check about subscriber
-    super(ProtoSubscriber, self).__init__(name, topic_type)
+    topic_type = type_protobuf.DESCRIPTOR.full_name
+    topic_enc  = "proto"
+    topic_desc = pb_helper.get_descriptor_from_type(type_protobuf)
+    super(ProtoSubscriber, self).__init__(name, topic_type, topic_enc, topic_desc)
     self.protobuf_type = type_protobuf
     self.callback = None
 
@@ -132,12 +117,59 @@ class ProtoSubscriber(MessageSubscriber):
     self.callback(topic_name, proto_message, time)
 
 
+class BinarySubscriber(MessageSubscriber):
+  """Specialized subscriber that subscribes to binary messages
+  """
+  def __init__(self, name):
+    topic_type = "binary"
+    topic_enc = "base"
+    topic_desc = b""
+    super(BinarySubscriber, self).__init__(name, topic_type, topic_enc, topic_desc)
+    self.callback = None
+
+  def receive(self, timeout=0):
+    """ receive subscriber content with timeout
+    
+    :param timeout: receive timeout in ms
+    
+    """
+    ret, msg, time = self.c_subscriber.receive(timeout)
+    if ret > 0:
+      msg = msg
+    else:
+      msg = b""
+    return ret, msg, time
+  
+  def set_callback(self, callback):
+    """ set callback function for incoming messages
+
+    :param callback: python callback function (f(topic_name, msg, time))
+
+    """
+    self.callback = callback
+    self.c_subscriber.set_callback(self._on_receive)
+
+  def rem_callback(self, callback):
+    """ remove callback function for incoming messages
+
+    :param callback: python callback function (f(topic_name, msg, time))
+
+    """
+    self.c_subscriber.rem_callback(self._on_receive)
+    self.callback = None
+
+  def _on_receive(self, topic_name, msg, time):
+    self.callback(topic_name, msg, time)
+
+
 class StringSubscriber(MessageSubscriber):
   """Spezialized publisher subscribes to plain strings
   """
   def __init__(self, name):
-    topic_type = "base:std::string"
-    super(StringSubscriber, self).__init__(name, topic_type)
+    topic_type = "std::string"
+    topic_enc  = "base"
+    topic_desc = b""
+    super(StringSubscriber, self).__init__(name, topic_type, topic_enc, topic_desc)
     self.callback = None
 
   def receive(self, timeout=0):

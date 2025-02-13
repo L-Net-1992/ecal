@@ -48,7 +48,10 @@ endif()
 
 add_library(eCAL::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-protobuf_target_cpp(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src INSTALL_FOLDER include ${ProtoFiles})
+protobuf_target_cpp(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src
+  INSTALL_FOLDER "${eCAL_install_include_dir}"
+  ${ProtoFiles}
+)
 
 target_compile_options(${PROJECT_NAME}
   PRIVATE
@@ -57,15 +60,9 @@ target_compile_options(${PROJECT_NAME}
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-target_link_libraries(${PROJECT_NAME} protobuf::libprotobuf)
+target_link_libraries(${PROJECT_NAME} PUBLIC protobuf::libprotobuf)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 
 ecal_install_library(${PROJECT_NAME})
-
-if(BUILD_PY_BINDING)
-  protobuf_generate_python_ext(python_sources ${PYTHON_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src ${ProtoFiles})
-  target_sources(${PROJECT_NAME} PRIVATE ${python_sources})
-  set_source_files_properties(${python_sources} PROPERTIES HEADER_FILE_ONLY TRUE)
-endif()
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER contrib/ecaltime/ecaltime_pb)

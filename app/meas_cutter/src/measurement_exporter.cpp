@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,15 @@
 #include "measurement_exporter.h"
 
 MeasurementExporter::MeasurementExporter():
-  _writer(new eCAL::eh5::HDF5Meas)
+  _writer(std::make_unique<eCAL::eh5::v2::HDF5Meas>())
 {
 }
 
 void MeasurementExporter::setPath(const std::string& path, const std::string& base_name, const size_t& max_size_per_file)
 {
-  _output_path = EcalUtils::Filesystem::CleanPath(path + EcalUtils::Filesystem::NativeSeparator(EcalUtils::Filesystem::OsStyle::Current) + eCALMeasCutterUtils::kDefaultFolderOutput, EcalUtils::Filesystem::OsStyle::Current);
-  if (!_writer->Open(_output_path, eCAL::eh5::eAccessType::CREATE))
+  _root_output_path = EcalUtils::Filesystem::CleanPath(path);
+  _output_path = EcalUtils::Filesystem::CleanPath(_root_output_path + EcalUtils::Filesystem::NativeSeparator(EcalUtils::Filesystem::OsStyle::Current) + eCALMeasCutterUtils::kDefaultFolderOutput, EcalUtils::Filesystem::OsStyle::Current);
+  if (!_writer->Open(_output_path, eCAL::eh5::v2::eAccessType::CREATE))
   {
     throw ExporterException("Unable to create HDF5 protobuf output path " + path + ".");
   }
@@ -52,15 +53,18 @@ MeasurementExporter::~MeasurementExporter()
 void MeasurementExporter::createChannel(const std::string& channel_name, const eCALMeasCutterUtils::ChannelInfo& channel_info)
 {
   _current_channel_name = channel_name;
+  eCAL::experimental::measurement::base::DataTypeInformation data_type_info;
   if (channel_info.format == eCALMeasCutterUtils::SerializationFormat::PROTOBUF)
   {
-    _writer->SetChannelType(channel_name, "proto:" + channel_info.type);
+    data_type_info.encoding = "proto";
   }
   else
   {
-    _writer->SetChannelType(channel_name, channel_info.type);
+    data_type_info.encoding = "";
   }
-  _writer->SetChannelDescription(channel_name, channel_info.description);
+  data_type_info.name = channel_info.type;
+  data_type_info.descriptor = channel_info.description;
+  _writer->SetChannelDataTypeInformation(channel_name, data_type_info);
 }
 
 void MeasurementExporter::setData(eCALMeasCutterUtils::Timestamp timestamp, const eCALMeasCutterUtils::MetaData& meta_data, const std::string& payload)
@@ -71,10 +75,10 @@ void MeasurementExporter::setData(eCALMeasCutterUtils::Timestamp timestamp, cons
   const auto sender_timestamp = (iter != meta_data.end()) ? iter->second.sender_timestamp : static_cast<eCALMeasCutterUtils::Timestamp>(0);
 
   iter = meta_data.find(eCALMeasCutterUtils::MetaDatumKey::SENDER_ID);
-  const auto sender_id = (iter != meta_data.end()) ? iter->second.sender_id : static_cast<uint64_t>(0);
+  const auto sender_id = (iter != meta_data.end()) ? iter->second.sender_id : 0;
 
   iter = meta_data.find(eCALMeasCutterUtils::MetaDatumKey::SENDER_CLOCK);
-  const auto sender_clock = (iter != meta_data.end()) ? iter->second.sender_clock : static_cast<uint64_t>(0);
+  const auto sender_clock = (iter != meta_data.end()) ? iter->second.sender_clock : 0;
 
   if (!_writer->AddEntryToFile(payload.data(), payload.size(), sender_timestamp, timestamp, _current_channel_name, sender_id, sender_clock))
   {
@@ -82,7 +86,12 @@ void MeasurementExporter::setData(eCALMeasCutterUtils::Timestamp timestamp, cons
   }
 }
 
-std::string MeasurementExporter::getOutputPath()
+std::string MeasurementExporter::getOutputPath() const
 {
   return _output_path;
+}
+
+std::string MeasurementExporter::getRootOutputPath() const
+{
+  return _root_output_path;
 }

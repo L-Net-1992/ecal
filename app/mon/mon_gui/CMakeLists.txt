@@ -16,18 +16,25 @@
 #
 # ========================= eCAL LICENSE =================================
 
+cmake_minimum_required(VERSION 3.14)
+
+# Allow the install command to use generator expressions
+if(POLICY CMP0087)
+    cmake_policy(SET CMP0087 NEW)
+endif()
+
 project(mon_gui)
 
-find_package(Qt5 COMPONENTS
-    Core
-    Widgets
-REQUIRED)
+# Legacy Qt5 (pre 5.15) support as suggested by teh Qt Documentation:
+# https://doc.qt.io/qt-6/cmake-qt5-and-qt6-compatibility.html#supporting-older-qt-5-versions
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
 find_package(Protobuf REQUIRED)
 
-if(ECAL_NPCAP_SUPPORT)
+if(ECAL_USE_NPCAP)
   find_package(udpcap REQUIRED)
-endif(ECAL_NPCAP_SUPPORT)
+endif(ECAL_USE_NPCAP)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF) # Reason for being turned off: AutoUIC will prevent VS from detecting changes in .ui files
@@ -35,8 +42,6 @@ set(CMAKE_AUTORCC OFF) # Reason for being turned off: AutoRCC will create an ent
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(source_files
-    #src/convert_utf.cpp
-    #src/convert_utf.h
     src/ecalmon.cpp
     src/ecalmon.h
     src/ecalmon_globals.h
@@ -97,7 +102,6 @@ set(source_files
     src/widgets/models/process_tree_item.h
     src/widgets/models/process_tree_model.cpp
     src/widgets/models/process_tree_model.h
-    src/widgets/models/service_tree_item.cpp
     src/widgets/models/service_tree_item.h
     src/widgets/models/service_tree_model.cpp
     src/widgets/models/service_tree_model.h
@@ -111,6 +115,13 @@ set(source_files
 
     src/widgets/plugin_settings_dialog/plugin_settings_dialog.cpp
     src/widgets/plugin_settings_dialog/plugin_settings_dialog.h
+
+    src/widgets/raw_monitoring_data_widget/protobuf_highlighter.cpp
+    src/widgets/raw_monitoring_data_widget/protobuf_highlighter.h
+    src/widgets/raw_monitoring_data_widget/raw_monitoring_data_widget.cpp
+    src/widgets/raw_monitoring_data_widget/raw_monitoring_data_widget.h
+    src/widgets/raw_monitoring_data_widget/search_lineedit.cpp
+    src/widgets/raw_monitoring_data_widget/search_lineedit.h
 
     src/widgets/visualisation_widget/visualisation_widget.cpp
     src/widgets/visualisation_widget/visualisation_widget.h
@@ -145,13 +156,14 @@ set(ui_files
     src/widgets/license_dialog/license_dialog.ui
     src/widgets/log_widget/log_widget.ui
     src/widgets/plugin_settings_dialog/plugin_settings_dialog.ui
+    src/widgets/raw_monitoring_data_widget/raw_monitoring_data_widget.ui
     src/widgets/system_information_widget/system_information_widget.ui
     src/widgets/tree_item_view_widget/tree_item_view_widget.ui
     src/widgets/visualisation_widget/visualisation_widget.ui
     src/widgets/visualisation_widget/visualisation_dock_widget.ui
 )
 
-if(ECAL_NPCAP_SUPPORT)
+if(ECAL_USE_NPCAP)
     set(source_files
         ${source_files}
         src/widgets/npcap_status_dialog/npcap_status_dialog.cpp
@@ -161,12 +173,16 @@ if(ECAL_NPCAP_SUPPORT)
         ${ui_files}
         src/widgets/npcap_status_dialog/npcap_status_dialog.ui
     )
-endif(ECAL_NPCAP_SUPPORT)
-
+endif(ECAL_USE_NPCAP)
 
 # compile qt resource files and ui files
-qt5_add_resources(autogen_resources ${qt_resource_files})
-qt5_wrap_ui      (autogen_ui        ${ui_files})
+if (${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    qt_add_resources(autogen_resources ${qt_resource_files})
+    qt_wrap_ui      (autogen_ui        ${ui_files})
+else()
+    qt5_add_resources(autogen_resources ${qt_resource_files})
+    qt5_wrap_ui      (autogen_ui        ${ui_files})
+endif()
 
 # Add all files. The resource files and ui files are not necessary, but we want them to show up in the IDE
 ecal_add_app_qt(${PROJECT_NAME} 
@@ -179,23 +195,24 @@ ecal_add_app_qt(${PROJECT_NAME}
     ${autogen_ui}
 )
 
-target_link_libraries (${PROJECT_NAME}
+target_link_libraries (${PROJECT_NAME} PRIVATE
     protobuf::libprotobuf
     eCAL::core
     eCAL::core_pb
     eCAL::mon_plugin_lib
-    Qt5::Widgets
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
     CustomQt
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_14) 
 
-if(ECAL_NPCAP_SUPPORT)
-  add_definitions(-DECAL_NPCAP_SUPPORT)
-  target_link_libraries(${PROJECT_NAME}
+if(ECAL_USE_NPCAP)
+  add_definitions(-DECAL_USE_NPCAP)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
     udpcap::udpcap
   )
-endif(ECAL_NPCAP_SUPPORT)
+endif(ECAL_USE_NPCAP)
 
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
@@ -211,9 +228,64 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:eCAL::core,INCLUDE_DIRECTORIES>)
 
 
-if(WIN32)
+if ((WIN32 OR APPLE) AND (${QT_VERSION_MAJOR} GREATER_EQUAL 6))
+
+    # Generate a script that will deploy all necessary Qt DLLs to the binary folder
+    # https://doc.qt.io/qt-6/qt-deploy-runtime-dependencies.html
+    # Available for Qt 6.3 and up (=> Not for Qt5!)
+    # Executing it requires CMake 3.14 and up, due to policy https://cmake.org/cmake/help/latest/policy/CMP0087.html
+    qt_generate_deploy_app_script(
+        TARGET ${PROJECT_NAME}
+        OUTPUT_SCRIPT qt_deploy_script
+        NO_COMPILER_RUNTIME
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+
+    # Add a postbuild script that will also execute the created script via cmake -P
+    # This is necessary to make the application startable / debuggable from the build directory.
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -DQT_DEPLOY_PREFIX=$<TARGET_FILE_DIR:${PROJECT_NAME}> -DQT_DEPLOY_BIN_DIR=. -P ${qt_deploy_script}
+    )
+
+    # Use the script for deploying the qt dlls in the install dir
+    install(SCRIPT ${qt_deploy_script})
+
+elseif(WIN32)
+
+    # For Qt5 we use our legacy script.
     # Deploy Qt DLLs in the binary folder. This is necessary for starting the application from whithin the IDE without having to copy QtCore.dll, QtWidgets.dll etc. by hand each time
     qt_add_windeployqt_postbuild(--no-system-d3d-compiler --no-compiler-runtime --no-opengl-sw --pdb "$<TARGET_FILE:${PROJECT_NAME}>")
+
+    get_target_property(_qmake_executable Qt5::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+    install(CODE
+        "
+        set(_file ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Release/ecal_mon_gui.exe)
+        execute_process(
+                COMMAND \"${CMAKE_COMMAND}\" -E
+                    env PATH=\"${_qt_bin_dir}\" \"${WINDEPLOYQT_EXECUTABLE}\"
+                        --dry-run
+                        --no-compiler-runtime
+                        --no-angle
+                        --no-opengl-sw
+                        --list mapping
+                        \${_file}
+                OUTPUT_VARIABLE _output
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+        separate_arguments(_files WINDOWS_COMMAND \${_output})
+        while(_files)
+                list(GET _files 0 _src)
+                list(GET _files 1 _dest)
+                execute_process(
+                    COMMAND \"${CMAKE_COMMAND}\" -E
+                        copy \${_src} \"\${CMAKE_INSTALL_PREFIX}/bin/\${_dest}\"
+                )
+                list(REMOVE_AT _files 0 1)
+        endwhile()
+        "
+)
 endif()
 
 # Create a source tree that mirrors the filesystem
@@ -239,42 +311,3 @@ source_group( autogen FILES
 set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER app/mon)
 
 ecal_install_app(${PROJECT_NAME} START_MENU_NAME "eCAL Monitor")
-get_target_property(_qmake_executable Qt5::qmake IMPORTED_LOCATION)
-get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
-find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
-
-# Running this with MSVC 2015 requires CMake 3.6+
-if((MSVC_VERSION VERSION_EQUAL 1900 OR MSVC_VERSION VERSION_GREATER 1900)
-        AND CMAKE_VERSION VERSION_LESS "3.6")
-    message(WARNING "Deploying with MSVC 2015+ requires CMake 3.6+")
-endif()
-
-if(WIN32)
-install(CODE
-    "
-    set(_file ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Release/ecal_mon_gui.exe)
-    execute_process(
-            COMMAND \"${CMAKE_COMMAND}\" -E
-                env PATH=\"${_qt_bin_dir}\" \"${WINDEPLOYQT_EXECUTABLE}\"
-                    --dry-run
-                    --no-compiler-runtime
-                    --no-angle
-                    --no-opengl-sw
-                    --list mapping
-                    \${_file}
-            OUTPUT_VARIABLE _output
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-    separate_arguments(_files WINDOWS_COMMAND \${_output})
-    while(_files)
-            list(GET _files 0 _src)
-            list(GET _files 1 _dest)
-            execute_process(
-                COMMAND \"${CMAKE_COMMAND}\" -E
-                    copy \${_src} \"\${CMAKE_INSTALL_PREFIX}/bin/\${_dest}\"
-            )
-            list(REMOVE_AT _files 0 1)
-    endwhile()
-    "
-)
-endif()

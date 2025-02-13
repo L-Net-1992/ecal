@@ -1,6 +1,6 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2024 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ project(meas_cutter)
 find_package(Threads REQUIRED)
 find_package(tclap REQUIRED)
 find_package(yaml-cpp REQUIRED)
+
+include(${ECAL_PROJECT_ROOT}/thirdparty/yaml-cpp/compatibility-yaml-cpp.cmake)
+yaml_cpp_create_compatibility_targets()
 
 set(meas_cutter_src
     src/main.cpp
@@ -49,11 +52,13 @@ ecal_add_app_console(${PROJECT_NAME} ${meas_cutter_src})
 target_include_directories(${PROJECT_NAME}
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
-target_link_libraries(${PROJECT_NAME}   yaml-cpp
-                                        tclap::tclap
-                                        eCAL::ecal-utils
-                                        eCAL::hdf5
-                                        Threads::Threads)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  yaml-cpp::yaml-cpp
+  tclap::tclap
+  eCAL::ecal-utils
+  eCAL::hdf5
+  Threads::Threads
+)
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_14) 
 

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,49 +53,33 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
 {
   if (role == (Qt::ItemDataRole)ItemDataRoles::RawDataRole) //-V1016 //-V547
   {
-    if (column == Columns::RCLOCK)
+    if (column == Columns::REGISTRATION_CLOCK)
     {
-      return process_.rclock();
+      return process_.registration_clock();
     }
-    else if (column == Columns::HNAME)
+    else if (column == Columns::HOST_NAME)
     {
-      return process_.hname().c_str();
+      return process_.host_name().c_str();
     }
-    else if (column == Columns::PID)
+    else if (column == Columns::SHM_TRANSPORT_DOMAIN)
     {
-      return process_.pid();
+      return process_.shm_transport_domain().c_str();
     }
-    else if (column == Columns::PNAME)
+    else if (column == Columns::PROCESS_ID)
     {
-      return process_.pname().c_str();
+      return process_.process_id();
     }
-    else if (column == Columns::UNAME)
+    else if (column == Columns::PROCESS_NAME)
     {
-      return process_.uname().c_str();
+      return process_.process_name().c_str();
     }
-    else if (column == Columns::PPARAM)
+    else if (column == Columns::UNIT_NAME)
     {
-      return process_.pparam().c_str();
+      return process_.unit_name().c_str();
     }
-    else if (column == Columns::PMEMORY)
+    else if (column == Columns::PROCESS_PARAMETER)
     {
-      return (long long)process_.pmemory();
-    }
-    else if (column == Columns::PCPU)
-    {
-      return (long long)process_.pcpu();
-    }
-    else if (column == Columns::USRPTIME)
-    {
-      return process_.usrptime();
-    }
-    else if (column == Columns::DATAWRITE)
-    {
-      return (long long)process_.datawrite();
-    }
-    else if (column == Columns::DATAREAD)
-    {
-      return (long long)process_.dataread();
+      return process_.process_parameter().c_str();
     }
     else if (column == Columns::SEVERITY)
     {
@@ -105,13 +89,13 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
     {
       return process_.state().info().c_str();
     }
-    else if (column == Columns::TSYNC_STATE)
+    else if (column == Columns::TIME_SYNC_STATE)
     {
-      return (int)process_.tsync_state();
+      return (int)process_.time_sync_state();
     }
     else if (column == Columns::TSYNC_MOD_NAME)
     {
-      return process_.tsync_mod_name().c_str();
+      return process_.time_sync_module_name().c_str();
     }
     else if (column == Columns::COMPONENT_INIT_INFO)
     {
@@ -121,6 +105,10 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
     {
       return process_.ecal_runtime_version().c_str();
     }
+    else if (column == Columns::CONFIG_FILE_PATH)
+    {
+      return process_.config_file_path().c_str();
+    }
     else
     {
       return QVariant();
@@ -129,44 +117,21 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if ((role == Qt::ItemDataRole::DisplayRole) || (role == Qt::ItemDataRole::ToolTipRole))
   {
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME))
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::SHM_TRANSPORT_DOMAIN)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME))
     {
       QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
       return (!raw_data.isEmpty() ? raw_data : "- ? -");
-    }
-    else if (column == Columns::PMEMORY)
-    {
-      auto memory_bytes = process_.pmemory();
-      if (memory_bytes == 0)
-      {
-        return "0";
-      }
-      else
-      {
-        return QString::number(memory_bytes / 1024.0, 'f', 0);
-      }
-    }
-    else if (column == Columns::PCPU)
-    {
-      double cpu_percentage = process_.pcpu();
-      if (fabs(cpu_percentage) < DBL_EPSILON)
-      {
-        return "0";
-      }
-      else
-      {
-        return QString::number(cpu_percentage, 'f', 2);
-      }
     }
     else if (column == Columns::SEVERITY)
     {
       return severityToString(process_.state().severity(), process_.state().severity_level());
     }
-    else if (column == Columns::TSYNC_STATE)
+    else if (column == Columns::TIME_SYNC_STATE)
     {
-      switch (process_.tsync_state())
+      switch (process_.time_sync_state())
       {
       case 0:
         return "None";
@@ -191,15 +156,16 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == (Qt::ItemDataRole)ItemDataRoles::FilterRole) //-V1016 //-V547
   {
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME))
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::SHM_TRANSPORT_DOMAIN)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME))
     {
       return data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole); //-V1016
     }
-    else if (column == Columns::TSYNC_STATE)
+    else if (column == Columns::TIME_SYNC_STATE)
     {
-      switch (process_.tsync_state())
+      switch (process_.time_sync_state())
       {
       case 0:
         return "None";
@@ -219,13 +185,8 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == Qt::ItemDataRole::TextAlignmentRole)
   {
-    if ((column == Columns::RCLOCK)
-      || (column == Columns::PID)
-      || (column == Columns::PMEMORY)
-      || (column == Columns::PCPU)
-      || (column == Columns::USRPTIME)
-      || (column == Columns::DATAWRITE)
-      || (column == Columns::DATAREAD)
+    if ((column == Columns::REGISTRATION_CLOCK)
+      || (column == Columns::PROCESS_ID)
       )
     {
       return Qt::AlignmentFlag::AlignRight;
@@ -238,19 +199,19 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == (Qt::ItemDataRole)ItemDataRoles::GroupRole) //-V1016 //-V547
   {
-    if (column == Columns::PID)
+    if (column == Columns::PROCESS_ID)
     {
-      QStringList list{ process_.hname().c_str(), QString::number(process_.pid()) };
+      QStringList list{ process_.host_name().c_str(), QString::number(process_.process_id()) };
       return list;
     }
-    if (column == Columns::PNAME)
+    if (column == Columns::PROCESS_NAME)
     {
-      QStringList list{process_.hname().c_str(), process_.pname().c_str()};
+      QStringList list{process_.host_name().c_str(), process_.process_name().c_str()};
       return list;
     }
-    else if (column == Columns::UNAME)
+    else if (column == Columns::UNIT_NAME)
     {
-      QStringList list{ process_.hname().c_str(), process_.uname().c_str(), QString::number(process_.pid()) };
+      QStringList list{ process_.host_name().c_str(), process_.unit_name().c_str(), QString::number(process_.process_id()) };
       return list;
     }
     else
@@ -274,16 +235,17 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
       case eCAL::pb::proc_sev_failed:
         return QColor(240, 20, 20);
       default:
-        return QVariant::Invalid;
+        return QVariant(); // Invalid QVariant
       }
     }
   }
 
   else if (role == Qt::ItemDataRole::FontRole)
   {
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME))
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::SHM_TRANSPORT_DOMAIN)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME))
     {
       QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
       if (raw_data.isEmpty())
@@ -294,15 +256,15 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
       }
       else
       {
-        return QVariant::Invalid;
+        return QVariant(); // Invalid QVariant
       }
     }
     
-    else if (column == Columns::TSYNC_STATE)
+    else if (column == Columns::TIME_SYNC_STATE)
     {
       QFont font;
       font.setItalic(true);
-      switch (process_.tsync_state())
+      switch (process_.time_sync_state())
       {
       case 0:
       case 1:
@@ -319,7 +281,7 @@ QVariant ProcessTreeItem::data(Columns column, Qt::ItemDataRole role) const
     }
   }
 
-  return QVariant::Invalid;
+  return QVariant(); // Invalid QVariant
 }
 
 int ProcessTreeItem::type() const

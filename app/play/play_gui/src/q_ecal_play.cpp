@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,15 +32,15 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
-#include <QtConcurrent/QtConcurrent>
+#include <QtConcurrent>
 #include <QFuture>
 #include <QApplication>
 #include <QCheckBox>
 
 #include "ecal_play_logger.h"
 
-#ifdef WIN32
-#include <QWinTaskbarButton>
+#if((defined WIN32) && (QT_VERSION < QT_VERSION_CHECK(6, 0, 0)))
+  #include <QWinTaskbarButton>
 #endif //WIN32
 
 QEcalPlay::QEcalPlay()
@@ -54,7 +54,7 @@ QEcalPlay::QEcalPlay()
   periodic_update_timer_->start(40);
 
   play_service_ = std::make_shared<EcalPlayService>();
-  play_service_server_.Create(play_service_);
+  play_service_server_ = std::make_unique<eCAL::protobuf::CServiceServer<eCAL::pb::play::EcalPlayService>>(play_service_);
 
   // Load default channel mapping setting
   QSettings settings;
@@ -126,6 +126,11 @@ double QEcalPlay::maxTimestampOfChannel(const std::string& channel_name) const
 std::string QEcalPlay::channelType(const std::string& channel_name) const
 {
   return ecal_play_.GetChannelType(channel_name);
+}
+
+std::string QEcalPlay::channelEncoding(const std::string& channel_name) const
+{
+  return ecal_play_.GetChannelEncoding(channel_name);
 }
 
 size_t QEcalPlay::channelCumulativeEstimatedSize(const std::string& channel_name) const
@@ -370,7 +375,7 @@ bool QEcalPlay::loadMeasurement(const QString& path, bool suppress_blocking_dial
   dlg.setValue(0);
   dlg.setValue(1);
 
-  QFuture<bool> success_future = QtConcurrent::run(&ecal_play_, &EcalPlay::LoadMeasurement, path.toStdString());
+  QFuture<bool> const success_future = QtConcurrent::run([this, path]() -> bool { return this->ecal_play_.LoadMeasurement(path.toStdString()); });
 
   while (!success_future.isFinished())
   {
@@ -585,7 +590,7 @@ void QEcalPlay::calculateChannelsCumulativeEstimatedSize() const
   dlg.setValue(0);
   dlg.setValue(1);
 
-  QFuture<void> success_future = QtConcurrent::run(&ecal_play_, &EcalPlay::CalculateEstimatedSizeForChannels);
+  QFuture<void> const success_future = QtConcurrent::run([this]() -> void { this->ecal_play_.CalculateEstimatedSizeForChannels(); });
 
   while (!success_future.isFinished())
   {

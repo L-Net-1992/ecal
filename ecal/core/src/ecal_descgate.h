@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,116 +23,102 @@
 
 #pragma once
 
-#include <ecal/ecal_util.h>
+#include <ecal/registration.h>
+#include <ecal/pubsub/types.h>
+#include <ecal/service/types.h>
+#include <ecal/util.h>
 
-#include "ecal_global_accessors.h"
-#include "ecal_def.h"
-#include "ecal_expmap.h"
+#include "serialization/ecal_struct_sample_registration.h"
 
-#include <shared_mutex>
-#include <string>
+#include <atomic>
+#include <chrono>
 #include <map>
-#include <unordered_map>
-#include <memory>
+#include <mutex>
+#include <string>
 #include <tuple>
-#include <vector>
-
 
 namespace eCAL
 {
   class CDescGate
   {
   public:
-    // Enumeration of quality bits used for detecting how good a topic information is.
-    enum class QualityFlags : int
-    {
-      NO_QUALITY                     = 0,         //!< Special value for initialization
-
-      DESCRIPTION_AVAILABLE          = 0x1 << 4,  //!< Having a descriptor at all is the most important thing
-      INFO_COMES_FROM_CORRECT_ENTITY = 0x1 << 3,  //!< The information comes from the current topic/service 
-                                                  //!< and has not been borrowed from another emtity, like read by a subscriber from a publisher
-      INFO_COMES_FROM_PRODUCER       = 0x1 << 2,  //!< A descriptor coming from the producer (like a publisher) is better than one from a 
-                                                  //!< consumer (like a subscriber), as we assume that the publisher knows best what he is publishing
-      INFO_COMES_FROM_THIS_PROCESS   = 0x1 << 1,  //!< We prefer descriptors from the current process
-      TYPE_AVAILABLE                 = 0x1 << 0,  //!< Having information about the type's name available is nice but not that important to us
-    };
-
-  public:
     CDescGate();
     ~CDescGate();
 
-    void Create();
-    void Destroy();
+    // apply samples to description gate
+    void ApplySample(const Registration::Sample& sample_, eTLayerType layer_);
 
-    bool ApplyTopicDescription(const std::string& topic_name_, 
-                               const std::string& topic_type_,
-                               const std::string& topic_desc_,
-                               const QualityFlags description_quality_);
+    // get publisher information
+    std::set<STopicId> GetPublisherIDs() const;
+    bool GetPublisherInfo(const STopicId& id_, SDataTypeInformation& topic_info_) const;
+    Registration::CallbackToken AddPublisherEventCallback(const Registration::TopicEventCallbackT& callback_);
+    void RemPublisherEventCallback(Registration::CallbackToken token_);
 
-    void GetTopics(std::unordered_map<std::string, Util::STopicInfo>& topic_info_map_);
-    void GetTopicNames(std::vector<std::string>& topic_names_);
-    bool GetTopicTypeName(const std::string& topic_name_, std::string& topic_type_);
-    bool GetTopicDescription(const std::string& topic_name_, std::string& topic_desc_);
+    // get subscriber information
+    std::set<STopicId> GetSubscriberIDs() const;
+    bool GetSubscriberInfo(const STopicId& id_, SDataTypeInformation& topic_info_) const;
+    Registration::CallbackToken AddSubscriberEventCallback(const Registration::TopicEventCallbackT& callback_);
+    void RemSubscriberEventCallback(Registration::CallbackToken token_);
 
-    bool ApplyServiceDescription(const std::string& service_name_, 
-                                 const std::string& method_name_, 
-                                 const std::string& req_type_name_, 
-                                 const std::string& req_type_desc_, 
-                                 const std::string& resp_type_name_,
-                                 const std::string& resp_type_desc_,
-                                 const QualityFlags description_quality_);
+    // get service information
+    std::set<SServiceId> GetServerIDs() const;
+    bool GetServerInfo(const SServiceId& id_, ServiceMethodInformationSetT& service_info_) const;
 
-    void GetServices(std::map<std::tuple<std::string, std::string>, Util::SServiceMethodInfo>& service_info_map_);
-    void GetServiceNames(std::vector<std::tuple<std::string, std::string>>& service_method_names_);
-    bool GetServiceTypeNames(const std::string& service_name_, const std::string& method_name_, std::string& req_type_name_, std::string& resp_type_name_);
-    bool GetServiceDescription(const std::string& service_name_, const std::string& method_name_, std::string& req_type_desc_, std::string& resp_type_desc_);
+    // get client information
+    std::set<SServiceId> GetClientIDs() const;
+    bool GetClientInfo(const SServiceId& id_, ServiceMethodInformationSetT& service_info_) const;
+
+    // delete copy constructor and copy assignment operator
+    CDescGate(const CDescGate&) = delete;
+    CDescGate& operator=(const CDescGate&) = delete;
+
+    // delete move constructor and move assignment operator
+    CDescGate(CDescGate&&) = delete;
+    CDescGate& operator=(CDescGate&&) = delete;
+
+    using TopicIdInfoMap  = std::map<STopicId, SDataTypeInformation>;
+    struct STopicIdInfoMap
+    {
+      mutable std::mutex mtx;
+      TopicIdInfoMap  map;
+    };
+
+    using TopicEventCallbackMap = std::map<Registration::CallbackToken, Registration::TopicEventCallbackT>;
+    struct STopicEventCallbackMap
+    {
+      mutable std::mutex mtx;
+      TopicEventCallbackMap map;
+    };
+
+    using ServiceIdInfoMap = std::map<SServiceId, ServiceMethodInformationSetT>;
+    struct SServiceIdInfoMap
+    {
+      mutable std::mutex  mtx;
+      ServiceIdInfoMap id_map;
+    };
 
   protected:
-    struct STopicInfoQuality
-    {
-      Util::STopicInfo info;                                                       //!< Topic info struct with type name and descriptor.
-      QualityFlags     quality               = QualityFlags::NO_QUALITY;           //!< QualityFlags to determine whether we may overwrite the current data with better one. E.g. we prefer the description sent by a publisher over one sent by a subscriber. 
-      bool             type_missmatch_logged = false;                              //!< Whether we have already logged a type-missmatch
-    };
 
-    struct SServiceMethodInfoQuality
-    {
-      Util::SServiceMethodInfo info;                                               //!< Service info struct with type names and descriptors for request and response.
-      QualityFlags             quality = QualityFlags::NO_QUALITY;                 //!< The Quality of the Info
-    };
+    static std::set<STopicId>   GetTopicIDs(const STopicIdInfoMap& topic_info_map_);
+    static bool                               GetTopic   (const STopicId& id_, const STopicIdInfoMap& topic_info_map_, SDataTypeInformation& topic_info_);
 
-    // key: topic name | value: topic (type/desc), quality
-    using TopicInfoMap = eCAL::Util::CExpMap<std::string, STopicInfoQuality>;      //!< Map containing { TopicName -> (Type, Description, Quality) } mapping of all topics that are currently known
-    struct STopicInfoMap
-    {
-      explicit STopicInfoMap(const std::chrono::milliseconds& timeout_) :
-        map(new TopicInfoMap(timeout_))
-      {
-      };
-      mutable std::shared_timed_mutex sync;                                        //!< Mutex protecting the map
-      std::unique_ptr<TopicInfoMap>   map;                                         //!< Map containing information about each known topic
-    };
-    STopicInfoMap m_topic_info_map;
+    static std::set<SServiceId> GetServiceIDs(const SServiceIdInfoMap& service_method_info_map_);
+    static bool                               GetService   (const SServiceId& id_, const SServiceIdInfoMap& service_method_info_map_, ServiceMethodInformationSetT& service_method_info_);
 
-    // key: tup<service name, method name> | value: request (type/desc), response (type/desc), quality
-    using ServiceMethodInfoMap = eCAL::Util::CExpMap<std::tuple<std::string, std::string>, SServiceMethodInfoQuality>; //!< Map { (ServiceName, MethodName) -> ( (ReqType, ReqDescription), (RespType, RespDescription), Quality ) } mapping of all currently known services
-    struct SServiceMethodInfoMap
-    {
-      explicit SServiceMethodInfoMap(const std::chrono::milliseconds& timeout_) :
-        map(new ServiceMethodInfoMap(timeout_))
-      {
-      };
-      mutable std::shared_timed_mutex       sync;                                  //!< Mutex protecting the map
-      std::unique_ptr<ServiceMethodInfoMap> map;                                   //!< Map containing information about each known service
-    };
-    SServiceMethodInfoMap m_service_info_map;
+    Registration::CallbackToken CreateToken();
+      
+    // internal quality topic info publisher/subscriber maps
+    STopicIdInfoMap                          m_publisher_info_map;
+    STopicEventCallbackMap                   m_publisher_callback_map;
+
+    STopicIdInfoMap                          m_subscriber_info_map;
+    STopicEventCallbackMap                   m_subscriber_callback_map;
+
+    // internal quality service info service/client maps
+    SServiceIdInfoMap                        m_service_info_map;
+    SServiceIdInfoMap                        m_client_info_map;
+
+    mutable std::mutex                       m_callback_token_mtx;
+    std::atomic<Registration::CallbackToken> m_callback_token{ 0 };
   };
-
-  constexpr inline CDescGate::QualityFlags  operator~  (CDescGate::QualityFlags  a)                            { return static_cast<CDescGate::QualityFlags>( ~static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(a) ); }
-  constexpr inline CDescGate::QualityFlags  operator|  (CDescGate::QualityFlags  a, CDescGate::QualityFlags b) { return static_cast<CDescGate::QualityFlags>( static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(a) | static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-  constexpr inline CDescGate::QualityFlags  operator&  (CDescGate::QualityFlags  a, CDescGate::QualityFlags b) { return static_cast<CDescGate::QualityFlags>( static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(a) & static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-  constexpr inline CDescGate::QualityFlags  operator^  (CDescGate::QualityFlags  a, CDescGate::QualityFlags b) { return static_cast<CDescGate::QualityFlags>( static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(a) ^ static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-  inline           CDescGate::QualityFlags& operator|= (CDescGate::QualityFlags& a, CDescGate::QualityFlags b) { return reinterpret_cast<CDescGate::QualityFlags&>( reinterpret_cast<std::underlying_type<CDescGate::QualityFlags>::type&>(a) |= static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-  inline           CDescGate::QualityFlags& operator&= (CDescGate::QualityFlags& a, CDescGate::QualityFlags b) { return reinterpret_cast<CDescGate::QualityFlags&>( reinterpret_cast<std::underlying_type<CDescGate::QualityFlags>::type&>(a) &= static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-  inline           CDescGate::QualityFlags& operator^= (CDescGate::QualityFlags& a, CDescGate::QualityFlags b) { return reinterpret_cast<CDescGate::QualityFlags&>( reinterpret_cast<std::underlying_type<CDescGate::QualityFlags>::type&>(a) ^= static_cast<std::underlying_type<CDescGate::QualityFlags>::type>(b) ); }
-};
+}

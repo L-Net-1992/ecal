@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #pragma warning(push)
 #pragma warning(disable: 4800) // disable termcolor warnings
 #endif
+#include <cstdint> // Needed for termcolor. Currently (2023-10-26) termcolor does not include this header file.
 #include <termcolor/termcolor.hpp>
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -255,7 +256,7 @@ namespace eCAL
         size_t longest_state        = header_data[6].size();
 
         std::vector<std::vector<std::string>> string_data;
-        std::vector<eCAL_Process_eSeverity>   serverity_data;
+        std::vector<eCAL::Process::eSeverity>   serverity_data;
         string_data   .reserve(task_list.size());
         serverity_data.reserve(task_list.size());
 
@@ -283,16 +284,16 @@ namespace eCAL
 
           switch (monitoring_state.severity)
           {
-          case eCAL_Process_eSeverity::proc_sev_healthy:
+          case eCAL::Process::eSeverity::healthy:
             state_ss << termcolor::on_green << state << termcolor::reset;
             break;
-          case eCAL_Process_eSeverity::proc_sev_warning:
+          case eCAL::Process::eSeverity::warning:
             state_ss << termcolor::on_yellow << state << termcolor::reset;
             break;
-          case eCAL_Process_eSeverity::proc_sev_critical:
+          case eCAL::Process::eSeverity::critical:
             state_ss << termcolor::on_red << state << termcolor::reset;
             break;
-          case eCAL_Process_eSeverity::proc_sev_failed:
+          case eCAL::Process::eSeverity::failed:
             state_ss << termcolor::on_magenta << state << termcolor::reset;
             break;
           default:
@@ -352,16 +353,16 @@ namespace eCAL
 
           switch (serverity_data[i])
           {
-          case eCAL_Process_eSeverity::proc_sev_healthy:
+          case eCAL::Process::eSeverity::healthy:
             std::cout << termcolor::on_green;
             break;
-          case eCAL_Process_eSeverity::proc_sev_warning:
+          case eCAL::Process::eSeverity::warning:
             std::cout << termcolor::on_yellow;
             break;
-          case eCAL_Process_eSeverity::proc_sev_critical:
+          case eCAL::Process::eSeverity::critical:
             std::cout << termcolor::on_red;
             break;
-          case eCAL_Process_eSeverity::proc_sev_failed:
+          case eCAL::Process::eSeverity::failed:
             std::cout << termcolor::on_magenta;
             break;
           default:
@@ -381,16 +382,16 @@ namespace eCAL
         std::string visibility_string;
         switch (task->GetVisibility())
         {
-        case eCAL_Process_eStartMode::proc_smode_hidden:
+        case eCAL::Process::eStartMode::hidden:
           visibility_string = "hidden";
           break;
-        case eCAL_Process_eStartMode::proc_smode_minimized:
+        case eCAL::Process::eStartMode::minimized:
           visibility_string = "minimized";
           break;
-        case eCAL_Process_eStartMode::proc_smode_maximized:
+        case eCAL::Process::eStartMode::maximized:
           visibility_string = "maximized";
           break;
-        case eCAL_Process_eStartMode::proc_smode_normal:
+        case eCAL::Process::eStartMode::normal:
           visibility_string = "normal";
           break;
         default:
@@ -423,23 +424,23 @@ namespace eCAL
 
         switch (task_state.severity)
         {
-        case eCAL_Process_eSeverity::proc_sev_healthy:
+        case eCAL::Process::eSeverity::healthy:
           std::cout << termcolor::on_green;
           break;
-        case eCAL_Process_eSeverity::proc_sev_warning:
+        case eCAL::Process::eSeverity::warning:
           std::cout << termcolor::on_yellow;
           break;
-        case eCAL_Process_eSeverity::proc_sev_critical:
+        case eCAL::Process::eSeverity::critical:
           std::cout << termcolor::on_red;
           break;
-        case eCAL_Process_eSeverity::proc_sev_failed:
+        case eCAL::Process::eSeverity::failed:
           std::cout << termcolor::on_magenta;
           break;
         default:
           break;
         }
 
-        std::cout << "State:               " << (task_state.severity == eCAL_Process_eSeverity::proc_sev_unknown ? state : state + " " + level) << std::endl;
+        std::cout << "State:               " << (task_state.severity == eCAL::Process::eSeverity::unknown ? state : state + " " + level) << std::endl;
         std::cout << termcolor::reset;
 
         std::cout << "Info:                " << task_state.info << std::endl;

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,32 +21,32 @@
 * @brief  eCAL process interface
 **/
 
+#include <cstdint>
 #include <ecal/ecal.h>
-#include <ecal/ecal_config.h>
 
 #include "ecal_def.h"
-#include "ecal_config_reader_hlp.h"
-#include "ecal_registration_provider.h"
-#include "ecal_registration_receiver.h"
 #include "ecal_globals.h"
-#include "ecal_process.h"
 
-#include <array>
-#include <chrono>
-#include <thread>
-#include <iostream>
-#include <sstream>
+#include "ecal_process_stub.h"
+#include "ecal_utils/command_line.h"
+#include "ecal_utils/str_convert.h"
+
+#include "io/udp/ecal_udp_configurations.h"
+
 #include <algorithm>
-#include <memory>
-#include <fstream>
-
-#include "sys_usage.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string>
-#include <cstring>
+#include <array>
 #include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
 
 #ifdef ECAL_OS_WINDOWS
 #include "ecal_win_main.h"
@@ -66,10 +66,7 @@
 #include <sys/select.h>
 #include <limits.h>
 #include <netinet/in.h>
-
-#include "ecal_process_stub.h"
 #include <ecal_utils/ecal_utils.h>
-
 #endif /* ECAL_OS_LINUX */
 
 #ifdef ECAL_OS_MACOS
@@ -83,11 +80,9 @@
 #include <libutil.h>
 #endif
 
-#ifdef ECAL_NPCAP_SUPPORT
-#include <udpcap/npcap_helpers.h>
-#endif // ECAL_NPCAP_SUPPORT
-
-#include <ecal_utils/command_line.h>
+#ifdef ECAL_CORE_NPCAP_SUPPORT
+#include <ecaludp/npcap_helpers.h>
+#endif // ECAL_CORE_NPCAP_SUPPORT
 
 #ifndef NDEBUG
 #define STD_COUT_DEBUG( x ) { std::stringstream ss; ss << x; std::cout << ss.str(); }
@@ -129,52 +124,6 @@ namespace
     }
     return "???";
   }
-#if defined(ECAL_OS_WINDOWS)
-  std::pair<bool, int> get_host_id()
-  {
-    // retrieve needed buffer size for GetAdaptersInfo
-    ULONG alloc_adapters_size(0);
-    {
-      IP_ADAPTER_INFO AdapterInfo;
-      GetAdaptersInfo(&AdapterInfo, &alloc_adapters_size);
-    }
-    if(alloc_adapters_size == 0) return std::make_pair(false, 0);
-
-    // allocate adapter memory
-    auto adapter_mem = std::make_unique<char[]>(static_cast<size_t>(alloc_adapters_size));
-
-    // get all adapter infos
-    PIP_ADAPTER_INFO pAdapter(nullptr);
-    pAdapter = reinterpret_cast<PIP_ADAPTER_INFO>(adapter_mem.get());
-    DWORD dwStatus = GetAdaptersInfo(pAdapter, &alloc_adapters_size);
-    if (dwStatus != ERROR_SUCCESS) return std::make_pair(false, 0);
-
-    // iterate adapters and create hash
-    int hash(0);
-    while(pAdapter)
-    {
-      for (UINT i = 0; i < pAdapter->AddressLength; ++i)
-      {
-        hash += (pAdapter->Address[i] << ((i & 1) * 8));
-      }
-      pAdapter = pAdapter->Next;
-    }
-
-    // return success
-    return std::make_pair(true, hash);
-  }
-#elif defined(ECAL_OS_QNX)
-  std::pair<bool, int> get_host_id()
-  {
-    // TODO: Find a suitable method on QNX to calculate an unqiue host identifier
-    return std::make_pair(true, -1);
-  }
-#else
-  std::pair<bool, int> get_host_id()
-  {
-    return std::make_pair(true, static_cast<int>(gethostid()));
-  }
-#endif
 }
 
 namespace eCAL
@@ -191,11 +140,11 @@ namespace eCAL
     void DumpConfig(std::string& cfg_s_)
     {
       std::stringstream sstream;
-      sstream << "------------------------- SYSTEM ---------------------------------" << std::endl;
-      sstream << "Version                  : " << ECAL_VERSION << " (" << ECAL_DATE << ")" << std::endl;
+      sstream << "------------------------- SYSTEM ---------------------------------" << '\n';
+      sstream << "Version                  : " << ECAL_VERSION << " (" << ECAL_DATE << ")" << '\n';
 #ifdef ECAL_OS_WINDOWS
 #ifdef _WIN64
-      sstream << "Platform                 : x64" << std::endl;
+      sstream << "Platform                 : x64" << '\n';
 #else
       sstream << "Platform                 : win32" << std::endl;
 #endif
@@ -203,101 +152,77 @@ namespace eCAL
 #ifdef ECAL_OS_LINUX
       sstream << "Platform                 : linux" << std::endl;
 #endif
-      sstream << std::endl;
+      sstream << '\n';
 
-      if (!eCAL::IsInitialized())
+      if (eCAL::IsInitialized() == 0)
       {
         sstream << "Components               : NOT INITIALIZED ( call eCAL::Initialize() )";
-        sstream << std::endl;
+        sstream << '\n';
         cfg_s_ = sstream.str();
         return;
       }
 
-      sstream << "------------------------- CONFIGURATION --------------------------" << std::endl;
-      sstream << "Default INI              : " << Config::GetLoadedEcalIniPath() << std::endl; 
-      sstream << std::endl;
+      sstream << "------------------------- CONFIGURATION --------------------------" << '\n';
+      sstream << "Default INI              : " << Config::GetLoadedEcalIniPath() << '\n';
+      sstream << '\n';
 
-      sstream << "------------------------- NETWORK --------------------------------" << std::endl;
-      sstream << "Host name                : " << Process::GetHostName() << std::endl;
+      sstream << "------------------------- NETWORK --------------------------------" << '\n';
+      sstream << "Host name                : " << Process::GetHostName() << '\n';
+      sstream << "SHM transport domain     : " << Process::GetShmTransportDomain() << '\n';
 
       if (Config::IsNetworkEnabled())
       {
-        sstream << "Network mode             : cloud" << std::endl;
+        sstream << "Network mode             : cloud" << '\n';
       }
       else
       {
-        sstream << "Network mode             : local" << std::endl;
+        sstream << "Network mode             : local" << '\n';
       }
-      sstream << "Network ttl              : " << Config::GetUdpMulticastTtl() << std::endl;
-      sstream << "Network sndbuf           : " << GetBufferStr(Config::GetUdpMulticastSndBufSizeBytes()) << std::endl;
-      sstream << "Network rcvbuf           : " << GetBufferStr(Config::GetUdpMulticastRcvBufSizeBytes()) << std::endl;
-      sstream << "Multicast cfg version    : v" << static_cast<uint32_t>(Config::GetUdpMulticastConfigVersion()) << std::endl;
-      sstream << "Multicast group          : " << Config::GetUdpMulticastGroup() << std::endl;
-      sstream << "Multicast mask           : " << Config::GetUdpMulticastMask() << std::endl;
-      int port = Config::GetUdpMulticastPort();
-      sstream << "Multicast ports          : " << port << " - " << port + 10 << std::endl;
-      sstream << "Multicast join all IFs   : " << (Config::IsUdpMulticastJoinAllIfEnabled() ? "on" : "off") << std::endl;
-      auto bandwidth = Config::GetMaxUdpBandwidthBytesPerSecond();
-      if (bandwidth < 0)
-      {
-        sstream << "Bandwidth limit (udp)    : not limited" << std::endl;
-      }
-      else
-      {
-        sstream << "Bandwidth limit udp      : " << GetBufferStr(bandwidth) + "/s" << std::endl;
-      }
-      sstream << std::endl;
+      sstream << "Network ttl              : " << UDP::GetMulticastTtl() << '\n';
+      sstream << "Network sndbuf           : " << GetBufferStr(Config::GetUdpMulticastSndBufSizeBytes()) << '\n';
+      sstream << "Network rcvbuf           : " << GetBufferStr(Config::GetUdpMulticastRcvBufSizeBytes()) << '\n';
+      sstream << "Multicast cfg version    : v" << static_cast<uint32_t>(Config::GetUdpMulticastConfigVersion()) << '\n';
+      sstream << "Multicast group          : " << Config::GetUdpMulticastGroup() << '\n';
+      sstream << "Multicast mask           : " << Config::GetUdpMulticastMask() << '\n';
+      const int port = Config::GetUdpMulticastPort();
+      sstream << "Multicast ports          : " << port << " - " << port + 10 << '\n';
+      sstream << "Multicast join all IFs   : " << (Config::IsUdpMulticastJoinAllIfEnabled() ? "on" : "off") << '\n';
+      sstream << '\n';
 
-      sstream << "------------------------- TIME -----------------------------------" << std::endl;
-      sstream << "Synchronization realtime : " << Config::GetTimesyncModuleName() << std::endl;
-      sstream << "Synchronization replay   : " << eCALPAR(TIME, SYNC_MOD_REPLAY) << std::endl;
+#if ECAL_CORE_TIMEPLUGIN
+      sstream << "------------------------- TIME -----------------------------------" << '\n';
+      sstream << "Synchronization realtime : " << Config::GetTimesyncModuleName() << '\n';
+      sstream << "Synchronization replay   : " << Config::GetTimesyncModuleReplay() << '\n';
       sstream << "State                    : ";
-      if (g_timegate()->IsSynchronized()) sstream << " synchronized " << std::endl;
-      else                                sstream << " not synchronized " << std::endl;
+      if (g_timegate()->IsSynchronized()) sstream << " synchronized " << '\n';
+      else                                sstream << " not synchronized " << '\n';
       sstream << "Master / Slave           : ";
-      if (g_timegate()->IsMaster())       sstream << " Master " << std::endl;
-      else                                sstream << " Slave " << std::endl;
-      int         status_state;
+      if (g_timegate()->IsMaster())       sstream << " Master " << '\n';
+      else                                sstream << " Slave " << '\n';
+      int         status_state = 0;
       std::string status_msg;
       g_timegate()->GetStatus(status_state, &status_msg);
-      sstream << "Status (Code)            : \"" << status_msg << "\" (" << status_state << ")" << std::endl;
-      sstream << std::endl;
-
-      sstream << "------------------------- PUBLISHER LAYER DEFAULTS ---------------"       << std::endl;
-      sstream << "Layer Mode INPROC        : " << LayerMode(Config::GetPublisherInprocMode())  << std::endl;
-      auto zero_copy = Config::IsMemfileZerocopyEnabled();
-
-      if (zero_copy)
-      {
-        sstream << "Layer Mode SHM (ZEROCPY) : " << LayerMode(Config::GetPublisherShmMode()) << std::endl;
-      }
-      else
-      {
-        sstream << "Layer Mode SHM           : " << LayerMode(Config::GetPublisherShmMode()) << std::endl;
-      }
-      sstream << "Layer Mode TCP           : " << LayerMode(Config::GetPublisherTcpMode()) << std::endl;
-      sstream << "Layer Mode UDP MC        : " << LayerMode(Config::GetPublisherUdpMulticastMode()) << std::endl;
-      sstream << std::endl;
-
-      sstream << "------------------------- SUBSCRIPTION LAYER DEFAULTS ------------"               << std::endl;
-      sstream << "Layer Mode INPROC        : " << LayerMode(Config::IsInprocRecEnabled())  << std::endl;
-      sstream << "Layer Mode SHM           : " << LayerMode(Config::IsShmRecEnabled())     << std::endl;
-      sstream << "Layer Mode TCP           : " << LayerMode(Config::IsTcpRecEnabled())  << std::endl;
-      sstream << "Layer Mode UDP MC        : " << LayerMode(Config::IsUdpMulticastRecEnabled())  << std::endl;
+      sstream << "Status (Code)            : \"" << status_msg << "\" (" << status_state << ")" << '\n';
+      sstream << '\n';
+#endif
+#if ECAL_CORE_SUBSCRIBER
+      sstream << "------------------------- SUBSCRIPTION LAYER DEFAULTS ------------" << '\n';
+      sstream << "Layer Mode UDP MC        : " << LayerMode(Config::IsUdpMulticastRecEnabled()) << '\n';
+      sstream << "Drop out-of-order msgs   : " << (Config::GetDropOutOfOrderMessages() ? "on" : "off") << '\n';
+#endif
+#ifdef ECAL_CORE_NPCAP_SUPPORT
       sstream << "Npcap UDP Reciever       : " << LayerMode(Config::IsNpcapEnabled());
-#ifdef ECAL_NPCAP_SUPPORT
-      if(Config::IsNpcapEnabled() && !Udpcap::Initialize())
+      if(Config::IsNpcapEnabled() && !ecaludp::npcap::is_initialized())
       {
         sstream << " (Init FAILED!)";
       }
-#else  // ECAL_NPCAP_SUPPORT
+#else  // ECAL_CORE_NPCAP_SUPPORT
       if (Config::IsNpcapEnabled())
       {
         sstream << " (Npcap is enabled, but not configured via CMake!)";
       }
-#endif // ECAL_NPCAP_SUPPORT
-      sstream << std::endl;
-
+#endif // ECAL_CORE_NPCAP_SUPPORT
+      sstream << '\n';
 
       // write it into std:string
       cfg_s_ = sstream.str();
@@ -307,47 +232,22 @@ namespace eCAL
     {
       if (g_host_name.empty())
       {
-        char hname[1024] = { 0 };
-        if (gethostname(hname, 1024) == 0)
+        char host_name[1024] = { 0 };
+        if (gethostname(host_name, 1024) == 0)
         {
-          g_host_name = hname;
+          g_host_name = host_name;
         }
         else
         {
-          std::cerr << "Unable to get host name" << std::endl;
+          std::cerr << "Unable to get host name" << '\n';
         }
       }
       return(g_host_name);
     }
 
-    int GetHostID()
+    std::string GetShmTransportDomain()
     {
-      return internal::GetHostID();
-    }
-
-    namespace internal
-    {
-      int GetHostID()
-      {
-        if (g_host_id == 0)
-        {
-          // try to get unique host id
-          bool success(false);
-          int  id(0);
-          std::tie(success, id) = get_host_id();
-          if (success)
-          {
-            g_host_id = id;
-          }
-          // never try again to not waste time
-          else
-          {
-            g_host_id = -1;
-            std::cerr << "Unable to get host id" << std::endl;
-          }
-        }
-        return(g_host_id);
-      }
+      return Config::GetShmTransportDomain().empty() ? GetHostName() : Config::GetShmTransportDomain();
     }
 
     std::string GetUnitName()
@@ -358,7 +258,7 @@ namespace eCAL
     std::string GetTaskParameter(const char* sep_)
     {
       std::string par_line;
-      for (auto par : g_task_parameter)
+      for (const auto& par : g_task_parameter)
       {
         if (!par_line.empty()) par_line += sep_;
         par_line += par;
@@ -389,42 +289,7 @@ namespace eCAL
       #endif
     }
 
-    float GetProcessCpuUsage()
-    {
-      return(GetCPULoad() * 100.0f);
-    }
-
-    long long GetSClock()
-    {
-      return(GetWClock());
-    };
-
-    long long GetSBytes()
-    {
-      return(GetWBytes());
-    };
-
-    long long GetWClock()
-    {
-      return(g_process_wclock);
-    };
-
-    long long GetWBytes()
-    {
-      return(g_process_wbytes);
-    };
-
-    long long GetRClock()
-    {
-      return(g_process_rclock);
-    };
-
-    long long GetRBytes()
-    {
-      return(g_process_rbytes);
-    };
-
-    void SetState(eCAL_Process_eSeverity severity_, eCAL_Process_eSeverity_Level level_, const char* info_)
+    void SetState(eCAL::Process::eSeverity severity_, eCAL::Process::eSeverityLevel level_, const char* info_)
     {
       g_process_severity = severity_;
       g_process_severity_level = level_;
@@ -432,20 +297,6 @@ namespace eCAL
       {
         g_process_info = info_;
       }
-    }
-
-    int AddRegistrationCallback(enum eCAL_Registration_Event event_, RegistrationCallbackT callback_)
-    {
-      if (!g_registration_receiver()) return -1;
-      if (g_registration_receiver()->AddRegistrationCallback(event_, callback_)) return 0;
-      return -1;
-    }
-
-    int RemRegistrationCallback(enum eCAL_Registration_Event event_)
-    {
-      if (!g_registration_receiver()) return -1;
-      if (g_registration_receiver()->RemRegistrationCallback(event_)) return 0;
-      return -1;
     }
   }
 }
@@ -485,9 +336,9 @@ namespace eCAL
     {
       if (g_process_name.empty())
       {
-        WCHAR pname[1024] = { 0 };
-        GetModuleFileNameExW(GetCurrentProcess(), 0, pname, 1024);
-        g_process_name = EcalUtils::StrConvert::WideToUtf8(pname);
+        WCHAR process_name[1024] = { 0 };
+        GetModuleFileNameExW(GetCurrentProcess(), nullptr, process_name, 1024);
+        g_process_name = EcalUtils::StrConvert::WideToUtf8(process_name);
       }
       return(g_process_name);
     }
@@ -501,15 +352,7 @@ namespace eCAL
       return(g_process_par);
     }
 
-    unsigned long GetProcessMemory()
-    {
-      PROCESS_MEMORY_COUNTERS pmc;
-      GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-      SIZE_T msize = pmc.PagefileUsage;
-      return(static_cast<unsigned long>(msize));
-    }
-
-    int StartProcess(const char* proc_name_, const char* proc_args_, const char* working_dir_, const bool create_console_, const eCAL_Process_eStartMode process_mode_, const bool block_)
+    int StartProcess(const char* proc_name_, const char* proc_args_, const char* working_dir_, const bool create_console_, const eCAL::Process::eStartMode process_mode_, const bool block_)
     {
       int ret_pid = 0;
 
@@ -520,7 +363,7 @@ namespace eCAL
         proc_name = exp_name;
       }
 
-      std::string proc_args = proc_args_;
+      const std::string proc_args = proc_args_;
       if (!proc_args.empty())
       {
         proc_name += " ";
@@ -533,7 +376,7 @@ namespace eCAL
         creation_flag = CREATE_NEW_CONSOLE;
       }
 
-      short win_state;
+      short win_state = 0;
       switch (process_mode_)
       {
       case 0:
@@ -610,11 +453,11 @@ namespace eCAL
       if (block_)
       {
         // Wait until child process exits.
-        if (pi.hProcess) WaitForSingleObject(pi.hProcess, INFINITE);
+        if (pi.hProcess != nullptr) WaitForSingleObject(pi.hProcess, INFINITE);
 
         // Close process and thread handles.
-        if (pi.hProcess) CloseHandle(pi.hProcess);
-        if (pi.hThread)  CloseHandle(pi.hThread);
+        if (pi.hProcess != nullptr) CloseHandle(pi.hProcess);
+        if (pi.hThread != nullptr)  CloseHandle(pi.hThread);
       }
 
       return(ret_pid);
@@ -676,8 +519,8 @@ namespace eCAL
         GetExitCodeProcess(pi.hProcess, &taskkill_error);
 
         // Close process and thread handles.
-        if (pi.hProcess) CloseHandle(pi.hProcess);
-        if (pi.hThread)  CloseHandle(pi.hThread);
+        if (pi.hProcess != nullptr) CloseHandle(pi.hProcess);
+        if (pi.hThread != nullptr)  CloseHandle(pi.hThread);
 
         return (taskkill_error == 0);
       }
@@ -729,8 +572,8 @@ namespace eCAL
         GetExitCodeProcess(pi.hProcess, &taskkill_error);
 
         // Close process and thread handles.
-        if (pi.hProcess) CloseHandle(pi.hProcess);
-        if (pi.hThread)  CloseHandle(pi.hThread);
+        if (pi.hProcess != nullptr) CloseHandle(pi.hProcess);
+        if (pi.hThread != nullptr)  CloseHandle(pi.hThread);
 
         return (taskkill_error == 0);
       }
@@ -759,15 +602,6 @@ namespace
     }
   }
 
-  int parseLine(char* line)
-  {
-    int i = strlen(line);
-    while (*line < '0' || *line > '9') line++;
-    line[i - 3] = '\0';
-    i = atoi(line);
-    return i;
-  }
-
   /**
    * @brief Checks whether all requirements for using a terminal emulator are fulfilled and then returns the according command
    * @return The terminal emulator command or an empty string, if the requirements are not fulfilled
@@ -777,7 +611,7 @@ namespace
     // Check whether we are able to use a terminal emulator. The requirements
     // are:
     //   - the DISPLAY variable must be set
-    //   - the terminal_emulator must be set in the ecal.ini
+    //   - the terminal_emulator must be set in the ecal.yaml
     //   - ecal_process_stub bust be available AND print the correct version
 
     // ------------------------ DISPLAY variable check -------------------------
@@ -798,11 +632,11 @@ namespace
     const std::string terminal_emulator_command = eCAL::Config::GetTerminalEmulatorCommand();
     if (!terminal_emulator_command.empty())
     {
-      STD_COUT_DEBUG("[PID " << getpid() << "]: " << "ecal.ini terminal emulator command is: " << terminal_emulator_command << std::endl);
+      STD_COUT_DEBUG("[PID " << getpid() << "]: " << "ecal.yaml terminal emulator command is: " << terminal_emulator_command << std::endl);
     }
     else
     {
-      STD_COUT_DEBUG("[PID " << getpid() << "]: " << "ecal.ini terminal emulator command is not set. Not using terminal emulator." << std::endl);
+      STD_COUT_DEBUG("[PID " << getpid() << "]: " << "ecal.yaml terminal emulator command is not set. Not using terminal emulator." << std::endl);
       return "";
     }
 
@@ -918,7 +752,7 @@ namespace eCAL
       if (g_process_par.empty())
       {
 #if defined(ECAL_OS_MACOS)
-        int pid = getpid();
+        int process_id = getpid();
 
         int    mib[3], argmax, argc;
         size_t    size;
@@ -978,7 +812,7 @@ namespace eCAL
          */
         mib[0] = CTL_KERN;
         mib[1] = KERN_PROCARGS2;
-        mib[2] = pid;
+        mib[2] = process_id;
 
         size = (size_t)argmax;
         if (sysctl(mib, 3, procargs.data(), &size, NULL, 0) == -1)
@@ -1132,41 +966,22 @@ namespace eCAL
       return(g_process_par);
     }
 
-    unsigned long GetProcessMemory()
-    {
-      FILE* file = fopen("/proc/self/status", "r");
-      if (file == nullptr) return(0);
-
-      int result = 0;
-      char line[128] = { 0 };
-      while (fgets(line, 128, file) != nullptr)
-      {
-        if (strncmp(line, "VmSize:", 7) == 0)
-        {
-          result = parseLine(line);
-          break;
-        }
-      }
-      fclose(file);
-      return(result * 1024);
-    }
-
     int StartProcess(const char* proc_name_,
       const char* proc_args_,
       const char* working_dir_,
       const bool /* create_console_ */,
-      const eCAL_Process_eStartMode  process_mode_,
+      const eCAL::Process::eStartMode  process_mode_,
       const bool  block_)
     {
       // Evaluate whether we want to use a terminal emulator. We only use a
       // terminal emulator, when:
       //   - The process_mode_ is not set to hidden
       //   - the DISPLAY variable indicates that we have a display attached
-      //   - the terminal_emulator is set in the ecal.ini
+      //   - the terminal_emulator is set in the ecal.yaml
       //   - ecal_process_stub is available AND prints the correct version
 
       std::string terminal_emulator_command;
-      if (process_mode_ != eCAL_Process_eStartMode::proc_smode_hidden)
+      if (process_mode_ != eCAL::Process::eStartMode::hidden)
       {
         STD_COUT_DEBUG("[PID " << getpid() << "]: " << "Checking requirements for using a terminal emulator... " << std::endl);
         terminal_emulator_command = getTerminalEmulatorCommand();

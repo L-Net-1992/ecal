@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -273,7 +273,7 @@ void PlayThread::Run()
       if (!command.playing_)
       {
         EcalPlayLogger::Instance()->info("Playback finished");
-        eCAL::Process::SetState(eCAL_Process_eSeverity::proc_sev_healthy, eCAL_Process_eSeverity_Level::proc_sev_level1, "Playback finished");
+        eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Playback finished");
       }
     }
   }
@@ -355,7 +355,7 @@ void PlayThread::SetPlaying_Private(bool playing)
     command_.sim_time_local_timestamp_ = now;
 
     EcalPlayLogger::Instance()->info("Playback pause");
-    eCAL::Process::SetState(eCAL_Process_eSeverity::proc_sev_healthy, eCAL_Process_eSeverity_Level::proc_sev_level1, "Paused");
+    eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Paused");
   }
   else if (!command_.playing_ && playing)
   {
@@ -365,7 +365,7 @@ void PlayThread::SetPlaying_Private(bool playing)
     command_.sim_time_local_timestamp_ = std::chrono::steady_clock::now();
 
     EcalPlayLogger::Instance()->info("Playback start");
-    eCAL::Process::SetState(eCAL_Process_eSeverity::proc_sev_healthy, eCAL_Process_eSeverity_Level::proc_sev_level1, "Playing");
+    eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Playing");
   }
 
   command_.playing_ = playing;
@@ -576,7 +576,7 @@ void PlayThread::LogChannelMapping(const std::map<std::string, std::string>& cha
 //// Measurement                                                            ////
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlayThread::SetMeasurement(std::shared_ptr<eCAL::eh5::HDF5Meas> measurement, const std::string& path)
+void PlayThread::SetMeasurement(const std::shared_ptr<eCAL::eh5::v2::HDF5Meas>& measurement, const std::string& path)
 {
   std::unique_ptr<MeasurementContainer> new_measurment_container;
 
@@ -756,6 +756,19 @@ std::string PlayThread::GetChannelType(const std::string& channel_name)
   if (measurement_container_)
   {
    return measurement_container_->GetChannelType(channel_name);
+  }
+  else
+  {
+    return std::string("");
+  }
+}
+
+std::string PlayThread::GetChannelEncoding(const std::string& channel_name)
+{
+  std::shared_lock<std::shared_timed_mutex> measurement_lock(measurement_mutex_);
+  if (measurement_container_)
+  {
+    return measurement_container_->GetChannelEncoding(channel_name);
   }
   else
   {

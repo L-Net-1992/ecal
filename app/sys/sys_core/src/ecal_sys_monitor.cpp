@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,17 +95,17 @@ void EcalSysMonitor::UpdateMonitor()
     for (const auto& process : m_monitoring_pb.processes())
     {
       // Update list of all Hosts
-      m_all_hosts.emplace(process.hname());
+      m_all_hosts.emplace(process.host_name());
 
       //Update list of available Targets
-      if (process.uname() == "eCALSysClient")
+      if (process.unit_name() == "eCALSysClient")
       {
-        m_hosts_running_ecal_sys_client.emplace(process.hname());
+        m_hosts_running_ecal_sys_client.emplace(process.host_name());
       }
       // Update list of hosts running eCAL Sys
-      if ((process.uname() == "eCALSys") || (process.uname() == "eCALSysGUI"))
+      if ((process.unit_name() == "eCALSys") || (process.unit_name() == "eCALSysGUI"))
       {
-        m_hosts_running_ecalsys.push_back(std::pair<std::string, int>(process.hname(), process.pid()));
+        m_hosts_running_ecalsys.push_back(std::pair<std::string, int>(process.host_name(), process.process_id()));
       }
     }
   }
@@ -133,8 +133,8 @@ void EcalSysMonitor::UpdateTaskStates(const std::list<std::shared_ptr<EcalSysTas
     std::lock_guard<std::recursive_mutex> lock(m_monitoring_mutex);
 
     TaskState task_state;
-    task_state.severity = eCAL_Process_eSeverity::proc_sev_unknown;
-    task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level1;
+    task_state.severity = eCAL::Process::eSeverity::unknown;
+    task_state.severity_level = eCAL::Process::eSeverityLevel::level1;
     bool task_mapping_found = false;
 
     if (!(task->IsMonitoringEnabled()))
@@ -149,8 +149,8 @@ void EcalSysMonitor::UpdateTaskStates(const std::list<std::shared_ptr<EcalSysTas
         std::vector<int> task_pids = task->GetPids();
 
 
-        if ((task->GetHostStartedOn() == process.hname())
-          && (std::find(task_pids.begin(), task_pids.end(), (int)process.pid()) != task_pids.end()))
+        if ((task->GetHostStartedOn() == process.host_name())
+          && (std::find(task_pids.begin(), task_pids.end(), (int)process.process_id()) != task_pids.end()))
         {
           // The task is matching!
           task_mapping_found = true;
@@ -176,8 +176,8 @@ void EcalSysMonitor::UpdateTaskStates(const std::list<std::shared_ptr<EcalSysTas
         if (task->IsMonitoringEnabled() && task->FoundInMonitorOnce() && !is_starting_or_stopping)
         {
           task_state.info = "Externally closed";
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_failed;
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level5;
+          task_state.severity = eCAL::Process::eSeverity::failed;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level5;
         }
         else
         {
@@ -187,8 +187,8 @@ void EcalSysMonitor::UpdateTaskStates(const std::list<std::shared_ptr<EcalSysTas
       else if (task_start_stop_state == EcalSysTask::StartStopState::Started_Failed)
       {
         task_state.info = "Start failed";
-        task_state.severity = eCAL_Process_eSeverity::proc_sev_failed;
-        task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level5;
+        task_state.severity = eCAL::Process::eSeverity::failed;
+        task_state.severity_level = eCAL::Process::eSeverityLevel::level5;
       }
       else if (task_start_stop_state == EcalSysTask::StartStopState::Stopped)
       {
@@ -223,7 +223,7 @@ void EcalSysMonitor::RestartBySeverity()
       TaskState current_state = task->GetMonitoringTaskState();
       TaskState restart_state = task->GetRestartAtSeverity();
 
-      if (current_state.severity != eCAL_Process_eSeverity::proc_sev_unknown
+      if (current_state.severity != eCAL::Process::eSeverity::unknown
         && current_state >= restart_state)
       {
         if (!is_starting_or_stopping)
@@ -274,11 +274,11 @@ std::list<std::shared_ptr<EcalSysTask>> EcalSysMonitor::GetTasksFromCloud()
 
   for (const auto& monitor_process : m_monitoring_pb.processes())
   {
-    std::string monitor_process_name = EcalUtils::String::Trim(monitor_process.uname());
-    std::string monitor_process_path = EcalUtils::String::Trim(monitor_process.pname());
-    std::string monitor_process_args = EcalUtils::String::Trim(monitor_process.pparam());
-    std::string monitor_process_host = EcalUtils::String::Trim(monitor_process.hname());
-    int pid                          = monitor_process.pid();
+    std::string monitor_process_name = EcalUtils::String::Trim(monitor_process.unit_name());
+    std::string monitor_process_path = EcalUtils::String::Trim(monitor_process.process_name());
+    std::string monitor_process_args = EcalUtils::String::Trim(monitor_process.process_parameter());
+    std::string monitor_process_host = EcalUtils::String::Trim(monitor_process.host_name());
+    int process_id                          = monitor_process.process_id();
     TaskState task_state             = eCAL::sys::proto_helpers::FromProtobuf(monitor_process.state());
 
     // If the process has no name we use the executable's name instead
@@ -293,7 +293,7 @@ std::list<std::shared_ptr<EcalSysTask>> EcalSysMonitor::GetTasksFromCloud()
     std::string algo_path;
     std::string algo_params;
 
-    std::vector<std::string> algo_cmdline_vector = EcalUtils::CommandLine::splitCommandLine(monitor_process.pparam(), 2); // Split command line in algo + arguments
+    std::vector<std::string> algo_cmdline_vector = EcalUtils::CommandLine::splitCommandLine(monitor_process.process_parameter(), 2); // Split command line in algo + arguments
     if(algo_cmdline_vector.size() == 0)
     {
       algo_path = monitor_process_path;
@@ -317,7 +317,7 @@ std::list<std::shared_ptr<EcalSysTask>> EcalSysMonitor::GetTasksFromCloud()
     task->SetCommandLineArguments  (algo_params);
     task->SetMonitoringEnabled     (true);
     task->SetHostStartedOn         (monitor_process_host);
-    task->SetPids                  (std::vector<int>{pid});
+    task->SetPids                  (std::vector<int>{process_id});
     task->SetStartStopState        (EcalSysTask::StartStopState::Started_Successfully);
     task->SetFoundInLastMonitorLoop(true);
     task->SetFoundInMonitorOnce    (true);

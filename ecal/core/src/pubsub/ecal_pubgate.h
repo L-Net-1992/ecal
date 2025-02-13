@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,14 @@
 
 #pragma once
 
-#include "ecal_global_accessors.h"
-#include "ecal_def.h"
+#include "ecal_publisher_impl.h"
+#include "serialization/ecal_struct_sample_registration.h"
 
-#include "readwrite/ecal_writer.h"
-
-#include <shared_mutex>
 #include <atomic>
+#include <map>
+#include <memory>
+#include <shared_mutex>
+#include <string>
 #include <unordered_map>
 
 namespace eCAL
@@ -40,32 +41,22 @@ namespace eCAL
     CPubGate();
     ~CPubGate();
 
-    void Create();
-    void Destroy();
+    void Start();
+    void Stop();
 
-    void ShareType(bool state_);
-    bool TypeShared() { return m_share_type; };
+    bool Register(const std::string& topic_name_, const std::shared_ptr<CPublisherImpl>& publisher_);
+    bool Unregister(const std::string& topic_name_, const std::shared_ptr<CPublisherImpl>& publisher_);
 
-    void ShareDescription(bool state_);
-    bool DescriptionShared() { return m_share_desc; };
+    void ApplySubscriberRegistration(const Registration::Sample& ecal_sample_);
+    void ApplySubscriberUnregistration(const Registration::Sample& ecal_sample_);
 
-    bool Register(const std::string& topic_name_, CDataWriter* datawriter_);
-    bool Unregister(const std::string& topic_name_, CDataWriter* datawriter_);
-
-    void ApplyLocSubRegistration(const eCAL::pb::Sample& ecal_sample_);
-    void ApplyExtSubRegistration(const eCAL::pb::Sample& ecal_sample_);
-
-    void RefreshRegistrations();
-
-    bool ApplyTopicToDescGate(const std::string& topic_name_, const std::string& topic_type_, const std::string& topic_desc_);
+    void GetRegistrations(Registration::SampleList& reg_sample_list_);
 
   protected:
     static std::atomic<bool>  m_created;
-    bool                      m_share_type;
-    bool                      m_share_desc;
 
-    typedef std::multimap<std::string, CDataWriter*> TopicNameDataWriterMapT;
-    std::shared_timed_mutex   m_topic_name_datawriter_sync;
-    TopicNameDataWriterMapT   m_topic_name_datawriter_map;
+    using TopicNamePublisherMapT = std::multimap<std::string, std::shared_ptr<CPublisherImpl>>;
+    std::shared_timed_mutex  m_topic_name_publisher_mutex;
+    TopicNamePublisherMapT   m_topic_name_publisher_map;
   };
-};
+}

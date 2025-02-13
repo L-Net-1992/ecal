@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <SimpleIni.h>
+#include <yaml-cpp/yaml.h>
 
 #include <iostream>
 #include <unistd.h>
 #include <sys/types.h>
-#include <ecal/ecal_util.h>
+#include <ecal/util.h>
 
 namespace LinuxPtpConfig {
 
@@ -32,20 +32,28 @@ namespace LinuxPtpConfig {
    * @brief reads the file ~/.ecal/ecaltime.ini to get the device
    * @return the device value from the linuxptp section
    */
-  std::string getDevice() {
-    CSimpleIniA ini;
+  std::string getDevice() {    
+    std::string path_to_ini = eCAL::Util::GeteCALDataDir();
+    path_to_ini += "/ecaltime.yaml";
 
-    std::string path_to_ini = eCAL::Util::GeteCALConfigPath();
-    path_to_ini += "ecaltime.ini";
-
-    int err = ini.LoadFile(path_to_ini.c_str());
-    if (err != SI_OK){
-      std::cerr << "Error reading ecaltime config file" << std::endl;
+    YAML::Node yaml;
+    try
+    {
+      yaml = YAML::LoadFile(path_to_ini);
+    }
+    catch(const std::exception& e)
+    {
+      std::cerr << "Error reading ecaltime config file: " << e.what() << "\n";
+    }
+    
+    if (yaml["linuxptp"])
+    {
+      if (yaml["linuxptp"]["device"])
+      {
+        return yaml["linuxptp"]["device"].as<std::string>();
+      }
     }
 
-    const char * pVal = ini.GetValue("linuxptp", "device", "/dev/ptp0");
-
-    std::string device(pVal);
-    return device;
+    return std::string("/dev/ptp0");
   }
 }

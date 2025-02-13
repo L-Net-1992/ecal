@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,98 +22,148 @@
 **/
 
 #include <ecal/ecal.h>
-#include <ecal/ecal_callback.h>
+#include <ecal/deprecate.h>
+#include <ecal/v5/ecal_callback.h>
+#include <ecal/service/types.h>
+#include <ecal/types.h>
+#include <ecal_service/client_session.h>
 
-#include "service/ecal_tcpclient.h"
+#include "serialization/ecal_serialize_sample_registration.h"
+#include "serialization/ecal_struct_service.h"
 
 #include <map>
 #include <mutex>
+#include <memory>
+#include <vector>
 
 namespace eCAL
 {
-  /**
-   * @brief Service client implementation class. 
-  **/
-  class CServiceClientImpl
-  {
-  public:
-    CServiceClientImpl();
-    CServiceClientImpl(const std::string& service_name_);
+    /**
+     * @brief Service client implementation class.
+    **/
+    class CServiceClientImpl : public std::enable_shared_from_this<CServiceClientImpl>
+    {
+    public:
+      // Factory method to create an instance of the client implementation
+      static std::shared_ptr<CServiceClientImpl> CreateInstance(
+        const std::string& service_name_, const ServiceMethodInformationSetT& method_information_map_, const ClientEventCallbackT& event_callback_);
 
-    ~CServiceClientImpl();
+    private:
+      // Private constructor to enforce creation through factory method
+      CServiceClientImpl(const std::string& service_name_, const ServiceMethodInformationSetT& method_information_map_, const ClientEventCallbackT& event_callback_);
 
-    bool Create(const std::string& service_name_);
+    public:
+      ~CServiceClientImpl();
 
-    bool Destroy();
+      // Retrieve service IDs of all matching services
+      std::vector<SEntityId> GetServiceIDs();
 
-    bool SetHostName(const std::string& host_name_);
+      // Blocking call to a specific service; returns response as pair<bool, SServiceResponse>
+      // if a callback is provided call the callback as well
+      std::pair<bool, SServiceResponse> CallWithCallback(
+        const SEntityId& entity_id_, const std::string& method_name_,
+        const std::string& request_, const ResponseCallbackT& response_callback_, int timeout_ms_);
 
-    // add and remove callback function for service response
-    bool AddResponseCallback(const ResponseCallbackT& callback_);
-    bool RemResponseCallback();
+      // Asynchronous call to a specific service using callback
+      bool CallWithCallbackAsync(
+        const SEntityId& entity_id_, const std::string& method_name_,
+        const std::string& request_, const ResponseCallbackT& response_callback_);
 
-    // add and remove callback function for client events
-    bool AddEventCallback(eCAL_Client_Event type_, ClientEventCallbackT callback_);
-    bool RemEventCallback(eCAL_Client_Event type_);
-      
-    // blocking call, no broadcast, first matching service only, response will be returned in service_response_
-    [[deprecated]]
-    bool Call(const std::string& method_name_, const std::string& request_, struct SServiceResponse& service_response_);
-    
-    // blocking call, all responses will be returned in service_response_vec_
-    bool Call(const std::string& method_name_, const std::string& request_, int timeout_, ServiceResponseVecT* service_response_vec_);
+      // Check connection state of a specific service
+      bool IsConnected(const SEntityId& entity_id_);
 
-    // blocking call, using callback
-    bool Call(const std::string& method_name_, const std::string& request_, int timeout_);
+      // Called by the registration receiver to process a service registration
+      void RegisterService(const SEntityId& entity_id_, const v5::SServiceAttr& service_);
 
-    // asynchronously call, using callback (timeout not supported yet)
-    bool CallAsync(const std::string& method_name_, const std::string& request_ /*, int timeout_*/);
+      // Called by the registration provider to get a registration sample
+      Registration::Sample GetRegistration();
 
-    // check connection state
-    bool IsConnected();
+      // Retrieves the service id
+      SServiceId GetServiceId() const;
 
-    // called by the eCAL::CClientGate to register a service
-    void RegisterService(const std::string& key_, const SServiceAttr& service_);
+      // Retrieves the service name
+      std::string GetServiceName() const;
 
-    // called by eCAL:CClientGate every second to update registration layer
-    void RefreshRegistration();
+      // Prevent copy and move operations
+      CServiceClientImpl(const CServiceClientImpl&) = delete;
+      CServiceClientImpl& operator=(const CServiceClientImpl&) = delete;
+      CServiceClientImpl(CServiceClientImpl&&) = delete;
+      CServiceClientImpl& operator=(CServiceClientImpl&&) = delete;
 
-    std::string GetServiceName() { return m_service_name; };
+    private:
+      // Prepare and retrieve registration and unregistration samples
+      Registration::Sample GetRegistrationSample();
+      Registration::Sample GetUnregistrationSample();
 
-    // this object must not be copied.
-    CServiceClientImpl(const CServiceClientImpl&) = delete;
-    CServiceClientImpl& operator=(const CServiceClientImpl&) = delete;
+      // SClient struct representing a client session and its connection state
+      struct SClient
+      {
+        v5::SServiceAttr service_attr;
+        std::shared_ptr<ecal_service::ClientSession> client_session;
+        bool connected = false;
+      };
 
-  protected:
-    void CheckForNewServices();
+      // Get client for specific entity id
+      bool GetClientByEntity(const SEntityId& entity_id_, SClient& client_);
 
-    bool SendRequests(const std::string& host_name_, const std::string& method_name_, const std::string& request_, int timeout_);
-    bool SendRequest(std::shared_ptr<CTcpClient> client_, const std::string& method_name_, const std::string& request_, int timeout_, struct SServiceResponse& service_response_);
+      // Blocking call to a specific service method with timeout
+      std::pair<bool, SServiceResponse> CallMethodWithTimeout(const SEntityId& entity_id_, SClient& client_,
+        const std::string& method_name_, const std::string& request_, std::chrono::nanoseconds timeout_);
 
-    void SendRequestsAsync(const std::string& host_name_, const std::string& method_name_, const std::string& request_, int timeout_);
-    void SendRequestAsync(std::shared_ptr<CTcpClient> client_, const std::string& method_name_, const std::string& request_, int timeout_);
+      // Update the connection states for client sessions
+      void UpdateConnectionStates();
 
-    void ErrorCallback(const std::string &method_name_, const std::string &error_message_);
+      // Increment method call count for tracking
+      void IncrementMethodCallCount(const std::string& method_name_);
 
-    typedef std::map<std::string, std::shared_ptr<CTcpClient>> ClientMapT;
-    std::mutex         m_client_map_sync;
-    ClientMapT         m_client_map;
+      // Notify specific event callback
+      void NotifyEventCallback(const SServiceId& service_id_, eClientEvent event_type_);
 
-    std::mutex         m_response_callback_sync;
-    ResponseCallbackT  m_response_callback;
+      // SResponseData struct for handling response callbacks
+      struct SResponseData
+      {
+        std::shared_ptr<std::mutex>                          mutex;
+        std::shared_ptr<std::condition_variable>             condition_variable;
+        std::shared_ptr<std::pair<bool, SServiceResponse>> response;
+        std::shared_ptr<bool>                                block_modifying_response;
+        std::shared_ptr<bool>                                finished;
 
-    std::mutex         m_event_callback_map_sync;
-    typedef std::map<eCAL_Client_Event, ClientEventCallbackT> EventCallbackMapT;
-    EventCallbackMapT  m_event_callback_map;
+        SResponseData() :
+          mutex(std::make_shared<std::mutex>()),
+          condition_variable(std::make_shared<std::condition_variable>()),
+          response(std::make_shared<std::pair<bool, SServiceResponse>>(false, SServiceResponse())),
+          block_modifying_response(std::make_shared<bool>(false)),
+          finished(std::make_shared<bool>(false))
+        {}
+      };
 
-    std::mutex         m_connected_services_map_sync;
-    typedef std::map<std::string, SServiceAttr> ServiceAttrMapT;
-    ServiceAttrMapT    m_connected_services_map;
+      static std::shared_ptr<SResponseData> PrepareInitialResponse(const SClient& client_, const std::string& method_name_);
+      static ecal_service::ClientResponseCallbackT CreateResponseCallback(const SClient& client_, const std::shared_ptr<SResponseData>& response_data_);
 
-    std::string        m_service_name;
-    std::string        m_service_id;
-    std::string        m_host_name;
+      static SServiceResponse DeserializedResponse(const SClient& client_, const std::string& response_pb_);
 
-    bool               m_created;
-  };
+      // Client version (incremented for protocol or functionality changes)
+      static constexpr int         m_client_version = 1;
+
+      // Service attributes
+      std::string                  m_service_name;
+      EntityIdT      m_client_id;
+
+      // Client session map and synchronization
+      using ClientSessionsMapT = std::map<SEntityId, SClient>;
+      std::mutex                   m_client_session_map_mutex;
+      ClientSessionsMapT           m_client_session_map;
+
+      // Method information map (tracks method attributes like data type and description)
+      std::mutex                   m_method_information_set_mutex;
+      ServiceMethodInformationSetT        m_method_information_set;
+
+      // Method call count map (tracks number of calls for each method)
+      using MethodCallCountMapT = std::map<std::string, uint64_t>;
+      MethodCallCountMapT          m_method_call_count_map;
+
+      // Event callback map and synchronization
+      std::mutex                   m_event_callback_mutex;
+      ClientEventCallbackT       m_event_callback;
+    };
 }

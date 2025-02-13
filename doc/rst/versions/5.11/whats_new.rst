@@ -10,7 +10,7 @@ eCAL 5.11 was released in Nobember 2022.
 The release contains the eCAL Mon TUI, the eCAL Meas Cutter and the SHM Monitoring Layer.
 
 - **Release**: December 2022
-- **End of life**: November 2023 (planned)
+- **End of life**: March 2024 (after 13 Month)
 
 New features
 ============
@@ -27,7 +27,7 @@ New features
 
 - eCAL Rec can now **record each topic to its own file**
 
-- Added **Shared-Memory-Monitoring-Layer** (experimental, enable via ``ecal.ini``!). This new monitoring layer can locally match publishers and subscribers and distribute monitoring information without the need for UDP Multicast.
+- Added **Shared-Memory-Monitoring-Layer** (experimental, enable via ``ecal.yaml``!). This new monitoring layer can locally match publishers and subscribers and distribute monitoring information without the need for UDP Multicast.
 
 - GUI Apps now start in **dark-mode** by default
 

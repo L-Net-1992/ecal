@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,8 +47,9 @@ ServiceWidget::ServiceWidget(QWidget *parent)
     (int)ServiceTreeModel::Columns::HOST_NAME,
     (int)ServiceTreeModel::Columns::PROCESS_NAME,
     (int)ServiceTreeModel::Columns::UNIT_NAME,
-    (int)ServiceTreeModel::Columns::PID,
+    (int)ServiceTreeModel::Columns::PROCESS_ID,
     (int)ServiceTreeModel::Columns::SERVICE_NAME,
+    (int)ServiceTreeModel::Columns::SERVICE_TYPE,
     (int)ServiceTreeModel::Columns::TCP_PORT,
     (int)ServiceTreeModel::Columns::METHOD_NAME,
     (int)ServiceTreeModel::Columns::METHOD_REQUEST_TYPE,
@@ -79,8 +80,9 @@ ServiceWidget::ServiceWidget(QWidget *parent)
   {
     (int)ServiceTreeModel::Columns::UNIT_NAME,
     (int)ServiceTreeModel::Columns::SERVICE_NAME,
+    (int)ServiceTreeModel::Columns::SERVICE_TYPE,
     (int)ServiceTreeModel::Columns::HOST_NAME,
-    (int)ServiceTreeModel::Columns::PID,
+    (int)ServiceTreeModel::Columns::PROCESS_ID,
     (int)ServiceTreeModel::Columns::METHOD_NAME,
     (int)ServiceTreeModel::Columns::METHOD_REQUEST_TYPE,
     (int)ServiceTreeModel::Columns::METHOD_RESPONSE_TYPE,
@@ -108,22 +110,22 @@ void ServiceWidget::autoSizeColumns()
 {
   eCAL::pb::Service example_service_pb;
 
-  example_service_pb.set_rclock(999999);
-  example_service_pb.set_hname("CARPC00____");
-  example_service_pb.set_pname("");
-  example_service_pb.set_uname("eCALRPCService____");
-  example_service_pb.set_pid(999999);
-  example_service_pb.set_sname("eCALRPCService____");
-  example_service_pb.set_tcp_port(999999);
+  example_service_pb.set_registration_clock(999999);
+  example_service_pb.set_host_name("CARPC00____");
+  example_service_pb.set_process_name("");
+  example_service_pb.set_unit_name("eCALRPCService____");
+  example_service_pb.set_process_id(999999);
+  example_service_pb.set_service_name("eCALRPCService____");
+  example_service_pb.set_tcp_port_v1(999999);
 
   eCAL::pb::Method* method = example_service_pb.mutable_methods()->Add();
-  method->set_mname("ShutdownProcessName____");
+  method->set_method_name("ShutdownProcessName____");
   method->set_req_type("ShutdownProcessNameRequest____");
   method->set_resp_type("ShutdownProcessNameResponse____");
   method->set_call_count(999999);
 
-  ServiceTreeItem* example_topic_item = new ServiceTreeItem(example_service_pb, *method);
-  GroupTreeItem* example_group_item = new GroupTreeItem("__ / eCALRPCService____", "", "", QVariant::Invalid, "");
+  auto* example_topic_item = new ServiceTreeItem<eCAL::pb::Service>(example_service_pb, *method);
+  GroupTreeItem* example_group_item = new GroupTreeItem("__ / eCALRPCService____", "", "", QVariant(), "");
 
   service_tree_model_->insertItem(example_topic_item);
   service_tree_model_->insertItem(example_group_item);
@@ -134,7 +136,7 @@ void ServiceWidget::autoSizeColumns()
     (int)ServiceTreeModel::Columns::UNIT_NAME,
     (int)ServiceTreeModel::Columns::SERVICE_NAME,
     (int)ServiceTreeModel::Columns::HOST_NAME,
-    (int)ServiceTreeModel::Columns::PID,
+    (int)ServiceTreeModel::Columns::PROCESS_ID,
     (int)ServiceTreeModel::Columns::TCP_PORT,
     (int)ServiceTreeModel::Columns::METHOD_NAME,
     (int)ServiceTreeModel::Columns::METHOD_REQUEST_TYPE,

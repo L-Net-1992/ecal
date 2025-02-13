@@ -1,6 +1,6 @@
 ﻿/* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,8 +61,8 @@ QVariant LogModel::data(const QModelIndex &index, int role) const
         return timeToString(logs_[row].time);
       case HOST_NAME:
         return logs_[row].host_name;
-      case PID:
-        return logs_[row].pid;
+      case PROCESS_ID:
+        return logs_[row].process_id;
       case PROCESS_NAME:
         return logs_[row].process_name;
       case PROCESS_PATH:
@@ -83,8 +83,8 @@ QVariant LogModel::data(const QModelIndex &index, int role) const
         return logs_[row].time;
       case HOST_NAME:
         return logs_[row].host_name;
-      case PID:
-        return logs_[row].pid;
+      case PROCESS_ID:
+        return logs_[row].process_id;
       case PROCESS_NAME:
         return logs_[row].process_name;
       case PROCESS_PATH:
@@ -115,41 +115,41 @@ QString LogModel::logLevelToString(int log_level)
 {
   switch (log_level)
   {
-  case eCAL_Logging_eLogLevel::log_level_debug1:
+  case eCAL::Logging::eLogLevel::log_level_debug1:
     return "Debug 1";
-  case eCAL_Logging_eLogLevel::log_level_debug2:
+  case eCAL::Logging::eLogLevel::log_level_debug2:
     return "Debug 2";
-  case eCAL_Logging_eLogLevel::log_level_debug3:
+  case eCAL::Logging::eLogLevel::log_level_debug3:
     return "Debug 3";
-  case eCAL_Logging_eLogLevel::log_level_debug4:
+  case eCAL::Logging::eLogLevel::log_level_debug4:
     return "Debug 4";
-  case eCAL_Logging_eLogLevel::log_level_info:
+  case eCAL::Logging::eLogLevel::log_level_info:
     return "Info";
-  case eCAL_Logging_eLogLevel::log_level_warning:
+  case eCAL::Logging::eLogLevel::log_level_warning:
     return "Warning";
-  case eCAL_Logging_eLogLevel::log_level_error:
+  case eCAL::Logging::eLogLevel::log_level_error:
     return "Error";
-  case eCAL_Logging_eLogLevel::log_level_fatal:
+  case eCAL::Logging::eLogLevel::log_level_fatal:
     return "Fatal";
   default:
     return "Unknown";
   }
 }
 
-QColor LogModel::logLevelColor(int log_level)
+QVariant LogModel::logLevelColor(int log_level)
 {
   switch (log_level)
   {
-  case eCAL_Logging_eLogLevel::log_level_info:
+  case eCAL::Logging::eLogLevel::log_level_info:
     return QColor(91, 155, 213);
-  case eCAL_Logging_eLogLevel::log_level_warning:
+  case eCAL::Logging::eLogLevel::log_level_warning:
     return QColor(255, 192, 0);
-  case eCAL_Logging_eLogLevel::log_level_error:
+  case eCAL::Logging::eLogLevel::log_level_error:
     return QColor(255, 100, 10);
-  case eCAL_Logging_eLogLevel::log_level_fatal:
+  case eCAL::Logging::eLogLevel::log_level_fatal:
     return QColor(192, 0, 0);
   default:
-    return QColor(0, 0, 0);
+    return QVariant(); // Invalid QVariant // Default color for "Debug x"
   }
 }
 
@@ -214,9 +214,11 @@ Qt::ItemFlags LogModel::flags(const QModelIndex &index) const
   return QAbstractItemModel::flags(index);
 }
 
-void LogModel::insertLogs(const eCAL::pb::Logging& logging_pb)
+void LogModel::insertLogs(const eCAL::pb::LogMessageList& logging_pb)
 {
-  int inserted_row_count = logging_pb.logs().size();
+  int inserted_row_count = logging_pb.log_messages().size();
+  if (inserted_row_count <= 0) return;
+  
   int size_before = logs_.size();
 
   // Remove entries from the top
@@ -244,17 +246,17 @@ void LogModel::insertLogs(const eCAL::pb::Logging& logging_pb)
   beginInsertRows(QModelIndex(), size_before, size_after - 1);
 
   int counter = inserted_row_count;
-  for (auto& log_message_pb : logging_pb.logs())
+  for (auto& log_message_pb : logging_pb.log_messages())
   {
     if (counter <= max_entries_)
     {
       LogModel::LogEntry entry;
 
       entry.time = log_message_pb.time();
-      entry.host_name = log_message_pb.hname().c_str();
-      entry.pid = log_message_pb.pid();
-      entry.process_path = log_message_pb.pname().c_str();
-      entry.process_name = log_message_pb.uname().c_str();
+      entry.host_name = log_message_pb.host_name().c_str();
+      entry.process_id = log_message_pb.process_id();
+      entry.process_path = log_message_pb.process_name().c_str();
+      entry.process_name = log_message_pb.unit_name().c_str();
       entry.log_level = log_message_pb.level();
       entry.message = log_message_pb.content().c_str();
 
@@ -294,7 +296,11 @@ bool LogModel::dumpToCsv(const QString& path)
       {
         QVariant current_data = data(index(row, col), Qt::ItemDataRole::DisplayRole);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        switch (current_data.typeId())
+#else
         switch ((QMetaType::Type)current_data.type())
+#endif
         {
         case QMetaType::QString:
           stream << "\"" << current_data.toString().replace("\"", "\"\"") << "\"";

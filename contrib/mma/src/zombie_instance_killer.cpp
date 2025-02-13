@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
  * ========================= eCAL LICENSE =================================
 */
 
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <list>
 #include <string>
@@ -29,13 +31,12 @@
 #endif
 
 #ifdef __linux__
-#include <csignal>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
 
-#include "ecal/ecal_process.h"
+#include "ecal/process.h"
 #include "../include/zombie_instance_killer.h"
 
 bool ZombieInstanceKiller::KillZombieInstance(const std::list<std::string>& process_names)
@@ -123,20 +124,20 @@ bool ZombieInstanceKiller::KillZombie(const std::string& pid_name)
     char buf[512];
     if (fgets(buf, 512, pipe) == nullptr) return false;
 
-    std::list<std::string> pids;
+    std::list<std::string> process_ids;
     char* pch;
     pch = strtok(buf, " ");
     while (pch != nullptr)
     {
-      pids.push_back(pch);
+      process_ids.push_back(pch);
       pch = strtok(nullptr, " ");
     }
 
-    if (!pids.empty())
+    if (!process_ids.empty())
     {
-      for (const auto& pid : pids)
+      for (const auto& process_id : process_ids)
       {
-        pid_t current_pid = strtoul(pid.c_str(), nullptr, 10);
+        pid_t current_pid = strtoul(process_id.c_str(), nullptr, 10);
 
         if ((current_pid != 0) && (current_pid != getpid()))
         {

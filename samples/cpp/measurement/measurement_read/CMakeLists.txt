@@ -1,6 +1,6 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2025 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,9 +43,12 @@ PROTOBUF_TARGET_CPP(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/src/protobuf ${m
 #target_include_directories(${PROJECT_NAME} PRIVATE .)
 target_compile_definitions(${PROJECT_NAME} PRIVATE MEASUREMENT_PATH="${SAMPLE_PERSON_MEASUREMENT_PATH}")
 
-target_link_libraries(${PROJECT_NAME} eCAL::hdf5 eCAL::proto)
-
-target_link_libraries(${PROJECT_NAME} protobuf::libprotobuf)
+target_link_libraries(${PROJECT_NAME} 
+  PRIVATE 
+    eCAL::measurement_hdf5 
+    eCAL::protobuf_base
+    protobuf::libprotobuf
+)
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_14)
 
@@ -55,4 +58,4 @@ if(MSVC)
     set_property(TARGET ${PROJECT_NAME} PROPERTY LINK_FLAGS "/ignore:4098,4099")
 endif(MSVC)
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER samples/cpp/ecalhdf5)
+set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER samples/cpp/measurement)

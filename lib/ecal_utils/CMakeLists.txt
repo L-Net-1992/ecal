@@ -17,6 +17,8 @@
 # ========================= eCAL LICENSE =================================
 project(ecal-utils)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 find_package(Threads REQUIRED)
 
 set (ecal_utils_includes
@@ -36,7 +38,7 @@ set(ecal_utils_src
     src/win_cp_changer.cpp
 )
 
-ecal_add_static_library(${PROJECT_NAME}
+ecal_add_library(${PROJECT_NAME}
     ${ecal_utils_includes}
     ${ecal_utils_src}
 )
@@ -50,6 +52,15 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
+
+# filesystem.cpp uses fts on Linux, some distibutions (i.e: Alpine) have fts as a
+# separate library
+if(LINUX)
+  find_library(libfts NAMES fts)
+  if(NOT "${libfts}" STREQUAL "libfts-NOTFOUND")
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${libfts}")
+  endif()
+endif()
 
 # Create a source tree that mirrors the filesystem
 source_group(TREE "${CMAKE_CURRENT_LIST_DIR}"

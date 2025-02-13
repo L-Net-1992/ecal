@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,22 +36,25 @@
 // callback for sys service response
 void OnSysResponse(const struct eCAL::SServiceResponse& service_response_)
 {
+  const std::string& method_name = service_response_.service_method_information.method_name;
+  const std::string& host_name   = service_response_.server_id.service_id.host_name;
+
   switch (service_response_.call_state)
   {
   // service successful executed
-  case call_state_executed:
+  case eCAL::eCallState::executed:
     {
       eCAL::pb::sys::Response response;
       response.ParseFromString(service_response_.response);
-      std::cout << "SysService " << service_response_.method_name << " called successfully on host " << service_response_.host_name << std::endl;
+      std::cout << "SysService " << method_name << " called successfully on host " << host_name << std::endl;
     }
     break;
   // service execution failed
-  case call_state_failed:
+  case eCAL::eCallState::failed:
     {
       eCAL::pb::sys::Response response;
       response.ParseFromString(service_response_.response);
-      std::cout << "SysService " << service_response_.method_name << " failed with \"" << response.error() << "\" on host " << service_response_.host_name << std::endl;
+      std::cout << "SysService " << method_name << " failed with \"" << response.error() << "\" on host " << host_name << std::endl;
     }
     break;
   default:
@@ -60,14 +63,13 @@ void OnSysResponse(const struct eCAL::SServiceResponse& service_response_)
 }
 
 // main entry
-int main(int argc, char **argv)
+int main()
 {
   // initialize eCAL API
-  eCAL::Initialize(argc, argv, "ecalsys client");
+  eCAL::Initialize("ecalsys client");
 
   // create player service client
   eCAL::protobuf::CServiceClient<eCAL::pb::sys::Service> sys_service;
-  sys_service.AddResponseCallback(OnSysResponse);
 
   // sleep for service matching
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -78,19 +80,19 @@ int main(int argc, char **argv)
   // "StartTasks - All"
   std::cout << "eCALPB.Sys.Service:StartTasks()" << std::endl;
   trequest.set_all(true);
-  sys_service.Call("StartTasks", trequest);
+  sys_service.CallWithCallback("StartTasks", trequest, OnSysResponse);
   std::cout << trequest.DebugString() << std::endl; std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
   // "RestartTasks - All"
   std::cout << "eCALPB.Sys.Service:RestartTasks()" << std::endl;
   trequest.set_all(true);
-  sys_service.Call("RestartTasks", trequest);
+  sys_service.CallWithCallback("RestartTasks", trequest, OnSysResponse);
   std::cout << trequest.DebugString() << std::endl; std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
   // "StopTasks - All"
   std::cout << "eCALPB.Sys.Service:StopTasks()" << std::endl;
   trequest.set_all(true);
-  sys_service.Call("StopTasks", trequest);
+  sys_service.CallWithCallback("StopTasks", trequest, OnSysResponse);
   std::cout << trequest.DebugString() << std::endl; std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
   // finalize eCAL API

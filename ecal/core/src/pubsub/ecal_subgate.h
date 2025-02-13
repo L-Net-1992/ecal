@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@
 
 #pragma once
 
-#include "ecal_thread.h"
-
-#include "readwrite/ecal_reader.h"
+#include "pubsub/ecal_subscriber_impl.h"
 
 #include <atomic>
+#include <cstddef>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -40,32 +40,27 @@ namespace eCAL
     CSubGate();
     ~CSubGate();
 
-    void Create();
-    void Destroy();
+    void Start();
+    void Stop();
 
-    bool Register(const std::string& topic_name_, CDataReader* datareader_);
-    bool Unregister(const std::string& topic_name_, CDataReader* datareader_);
+    bool Register(const std::string& topic_name_, const std::shared_ptr<CSubscriberImpl>& datareader_);
+    bool Unregister(const std::string& topic_name_, const std::shared_ptr<CSubscriberImpl>& datareader_);
 
     bool HasSample(const std::string& sample_name_);
-    size_t ApplySample(const eCAL::pb::Sample& ecal_sample_, eCAL::pb::eTLayerType layer_);
-    size_t ApplySample(const std::string& topic_name_, const std::string& topic_id_, const char* buf_, size_t len_, long long id_, long long clock_, long long time_, size_t hash_, eCAL::pb::eTLayerType layer_);
 
-    void ApplyLocPubRegistration(const eCAL::pb::Sample& ecal_sample_);
-    void ApplyExtPubRegistration(const eCAL::pb::Sample& ecal_sample_);
+    bool ApplySample(const char* serialized_sample_data_, size_t serialized_sample_size_, eTLayerType layer_);
+    bool ApplySample(const Payload::TopicInfo& topic_info_, const char* buf_, size_t len_, long long id_, long long clock_, long long time_, size_t hash_, eTLayerType layer_);
 
-    void RefreshRegistrations();
+    void ApplyPublisherRegistration(const Registration::Sample& ecal_sample_);
+    void ApplyPublisherUnregistration(const Registration::Sample& ecal_sample_);
+
+    void GetRegistrations(Registration::SampleList& reg_sample_list_);
 
   protected:
-    int CheckTimeouts();
-    bool ApplyTopicToDescGate(const std::string& topic_name_, const std::string& topic_type_, const std::string& topic_desc_);
-
     static std::atomic<bool> m_created;
 
-    // database data reader
-    typedef std::unordered_multimap<std::string, CDataReader*> TopicNameDataReaderMapT;
-    std::shared_timed_mutex  m_topic_name_datareader_sync;
-    TopicNameDataReaderMapT  m_topic_name_datareader_map;
-
-    eCAL::CThread            m_subtimeout_thread;
+    using TopicNameSubscriberMapT = std::unordered_multimap<std::string, std::shared_ptr<CSubscriberImpl>>;
+    std::shared_timed_mutex  m_topic_name_subscriber_mutex;
+    TopicNameSubscriberMapT  m_topic_name_subscriber_map;
   };
-};
+}

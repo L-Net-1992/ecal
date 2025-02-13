@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,19 +21,25 @@
  * @brief  eCAL core functions
 **/
 
+#include "ecal/config/configuration.h"
+
 #include "ecal_global_accessors.h"
+#include "ecal_def.h"
 #include "ecal_globals.h"
+#include "ecal_utils/filesystem.h"
+
+#include <atomic>
+#include <string>
 
 namespace eCAL
 {
   CGlobals*                     g_globals_ctx(nullptr);
   std::atomic<int>              g_globals_ctx_ref_cnt;
-  std::atomic<int>              g_shutdown;
 
   std::string                   g_default_ini_file(ECAL_DEFAULT_CFG);
+  Configuration                 g_ecal_configuration{};
 
   std::string                   g_host_name;
-  int                           g_host_id(0);
   std::string                   g_unit_name;
   std::vector<std::string>      g_task_parameter;
 
@@ -43,98 +49,124 @@ namespace eCAL
   std::string                   g_process_id_s;
   std::string                   g_process_info;
 
-  eCAL_Process_eSeverity        g_process_severity(proc_sev_unknown);
-  eCAL_Process_eSeverity_Level  g_process_severity_level(proc_sev_level1);
+  eCAL::Process::eSeverity        g_process_severity(eCAL::Process::eSeverity::unknown);
+  eCAL::Process::eSeverityLevel  g_process_severity_level(eCAL::Process::eSeverityLevel::level1);
 
-  std::atomic<long long>        g_process_wclock;
-  std::atomic<long long>        g_process_wbytes;
-  std::atomic<long long>        g_process_wbytes_sum;
+  void InitGlobals()
+  {
+    if (g_globals_ctx == nullptr)
+      g_globals_ctx = new CGlobals;
+  }
 
-  std::atomic<long long>        g_process_rclock;
-  std::atomic<long long>        g_process_rbytes;
-  std::atomic<long long>        g_process_rbytes_sum;
-
+  void SetGlobalUnitName(const char *unit_name_)
+  {
+    if(unit_name_ != nullptr) g_unit_name = unit_name_;
+    
+    if (g_unit_name.empty())
+    {
+      g_unit_name = EcalUtils::Filesystem::BaseName(Process::GetProcessName());
+    }
+  }
 
   CGlobals* g_globals()
   {
     return g_globals_ctx;
   }
 
-  CConfig* g_config()
+  Logging::CLogReceiver* g_log_udp_receiver()
   {
-    if (!g_globals()) return(nullptr);
-    return(g_globals()->config().get());
+    if (g_globals() == nullptr) return(nullptr);
+    return(g_globals()->log_udp_receiver().get());
   }
 
-  CLog* g_log()
+  Logging::CLogProvider* g_log_provider()
   {
-    if (!g_globals()) return(nullptr);
-    return(g_globals()->log().get());
+    if (g_globals() == nullptr) return(nullptr);
+    return(g_globals()->log_provider().get());
   }
 
+  Configuration& g_ecal_config()
+  {
+    return(g_ecal_configuration);
+  }
+
+#if ECAL_CORE_MONITORING
   CMonitoring* g_monitoring()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->monitoring().get());
   }
+#endif
 
+#if ECAL_CORE_TIMEPLUGIN
   CTimeGate* g_timegate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->timegate().get());
   }
+#endif
 
+#if ECAL_CORE_REGISTRATION
   CRegistrationProvider* g_registration_provider()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->registration_provider().get());
   }
 
+  CRegistrationReceiver* g_registration_receiver()
+  {
+    if (g_globals() == nullptr) return(nullptr);
+    return(g_globals()->registration_receiver().get());
+  }
+#endif
+
   CDescGate* g_descgate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->descgate().get());
   }
 
+#if ECAL_CORE_SUBSCRIBER
   CSubGate* g_subgate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->subgate().get());
   }
+#endif
 
+#if ECAL_CORE_PUBLISHER
   CPubGate* g_pubgate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->pubgate().get());
   }
+#endif
 
+#if ECAL_CORE_SERVICE
   CServiceGate* g_servicegate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->servicegate().get());
   }
 
   CClientGate* g_clientgate()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->clientgate().get());
   }
+#endif
 
-  CRegistrationReceiver* g_registration_receiver()
-  {
-    if (!g_globals()) return(nullptr);
-    return(g_globals()->registration_receiver().get());
-  }
-
+#if defined(ECAL_CORE_REGISTRATION_SHM) || defined(ECAL_CORE_TRANSPORT_SHM)
   CMemFileThreadPool* g_memfile_pool()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->memfile_pool().get());
   }
 
   CMemFileMap* g_memfile_map()
   {
-    if (!g_globals()) return(nullptr);
+    if (g_globals() == nullptr) return(nullptr);
     return(g_globals()->memfile_map().get());
   }
+#endif
 }

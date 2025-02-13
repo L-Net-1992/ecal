@@ -46,7 +46,12 @@ PluginWidget::PluginWidget(const QString& topic_name, const QString&, QWidget* p
   ui_.content_layout->addWidget(text_edit_);
 
   // Connect the eCAL Subscriber
-  subscriber_.AddReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2, std::placeholders::_3));
+  subscriber_.SetReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2, std::placeholders::_3));
+}
+
+PluginWidget::~PluginWidget()
+{
+  subscriber_.RemoveReceiveCallback();
 }
 
 void PluginWidget::ecalMessageReceivedCallback(const std::string& message, long long publish_timestamp_usecs)
@@ -98,10 +103,6 @@ void PluginWidget::updatePublishTimeLabel()
   ui_.publish_timestamp_label->setText(time_string);
 }
 
-PluginWidget::~PluginWidget()
-{
-}
-
 void PluginWidget::onUpdate()
 {
   if (new_msg_available_)
@@ -114,12 +115,12 @@ void PluginWidget::onUpdate()
 
 void PluginWidget::onResume()
 {
-  subscriber_.AddReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2, std::placeholders::_3));
+  subscriber_.SetReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2, std::placeholders::_3));
 }
 
 void PluginWidget::onPause()
 {
-  subscriber_.RemReceiveCallback();
+  subscriber_.RemoveReceiveCallback();
 }
 
 void PluginWidget::updateStringMessageView()

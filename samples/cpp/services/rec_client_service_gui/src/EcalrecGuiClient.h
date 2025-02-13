@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,15 +53,12 @@ signals:
   void setResponseSignal(QString response);
 
 private:
-  void onRecorderResponse(const struct eCAL::SServiceResponse& service_response_);
+  template <typename RequestT>
+  void callService(const std::string& method, const RequestT& request);
 
+  void onRecorderResponse(const eCAL::SServiceResponse& service_response_);
 
-
-
-
-
-private:
   Ui::EcalrecGuiServiceMainWindow ui_;
-
+  std::string hostname_;
   eCAL::protobuf::CServiceClient<eCAL::pb::rec_client::EcalRecClientService> recorder_service_;
 };

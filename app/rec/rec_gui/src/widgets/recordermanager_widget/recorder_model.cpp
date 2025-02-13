@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,11 @@
 
 #include <QFont>
 #include <QStyle>
-#include <QDesktopWidget>
+
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
+  #include <QDesktopWidget>
+#endif // QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
+
 #include <QDesktopServices>
 #include <QApplication>
 #include <QStyleOption>
@@ -101,7 +105,7 @@ RecorderModel::~RecorderModel()
 QVariant RecorderModel::data(const QModelIndex &index, int role) const
 {
   if (!index.isValid())
-    return QVariant::Invalid;
+    return QVariant(); // Invalid QVariant
 
   const int     row    = index.row();
   const Columns column = (Columns)index.column();
@@ -259,7 +263,7 @@ QVariant RecorderModel::data(const QModelIndex &index, int role) const
     }
   }
 
-  else if (column == Columns::PID)
+  else if (column == Columns::PROCESS_ID)
   {
     if ((role == Qt::ItemDataRole::DisplayRole)
       && (recorder_list_[row].recording_enabled_)
@@ -511,7 +515,7 @@ QVariant RecorderModel::data(const QModelIndex &index, int role) const
     {
       if (recorder_list_[row].recording_enabled_ && recorder_list_[row].time_error_warning_)
       {
-        return "On of the recorders appears to be out of sync!";
+        return "One of the recorders appears to be out of sync!";
       }
     }
 
@@ -583,7 +587,7 @@ QVariant RecorderModel::data(const QModelIndex &index, int role) const
     return data(index, Qt::ItemDataRole::DisplayRole);
   }
 
-  return QVariant::Invalid;
+  return QVariant(); // Invalid QVariant
 }
 
 bool RecorderModel::setData(const QModelIndex &index, const QVariant &value, int role)
@@ -720,7 +724,7 @@ QVariant RecorderModel::headerData(int section, Qt::Orientation orientation, int
   {
     return column_labels_.at((Columns)section);
   }
-  return QVariant::Invalid;
+  return QVariant(); // Invalid QVariant
 }
 
 QModelIndex RecorderModel::index(int row, int column, const QModelIndex& /*parent*/) const
@@ -1664,6 +1668,6 @@ void RecorderModel::emitDataChangedConfig(int row)
 
 void RecorderModel::emitDataChangedState(int row)
 {
-  emit dataChanged(index(row, (int)Columns::HOSTNAME),  index(row, (int)Columns::PID));
+  emit dataChanged(index(row, (int)Columns::HOSTNAME),  index(row, (int)Columns::PROCESS_ID));
   emit dataChanged(index(row, (int)Columns::TIMESTAMP), index(row, (int)Columns::COLUMN_COUNT - 1));
 }

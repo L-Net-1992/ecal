@@ -1,4 +1,4 @@
-name: Build Windows Server 2019
+name: Build Windows
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
     branches:
       - master
 env:
-  IS_GITHUB_SIGNING_ALLOWED: true
   IS_JENKINS_SIGNING_ALLOWED: true
 
 jobs:
@@ -22,49 +21,22 @@ jobs:
       uses: jurplel/install-qt-action@v3
       with:
         setup-python: 'false'
-        version: '5.15.2'
+        version: '6.6.1'
         target: 'desktop'
-        arch: 'win64_msvc2015_64'
-
-    # Downgrading nuget is required as of 2021-04-23, as nuget 5.9.1.111 fails installing protobuf
-    # https://github.com/actions/virtual-environments/issues/3240
-    - name: Downgrade nuget
-      uses: nuget/setup-nuget@v1
-      with:
-        nuget-version: '5.8.x'
+        arch: 'win64_msvc2019_64'
 
     - name: Install Dependencies
-      # choco install of version 1.9.3 produced a checksum error
-      run: choco install doxygen.install --version=1.9.2
+      # Pin to latest doxygen version.
+      run: choco install doxygen.install --version=1.13.2
 
     - name: Uninstall Chocolatey
       run: move "$env:PROGRAMDATA\chocolatey" "$env:PROGRAMDATA\_chocolatey"
 
-#    - name: Install Cap’n Proto
-#      run: |
-#        mkdir "${{ runner.workspace }}/capnp"
-#        cd "${{ runner.workspace }}/capnp"
-#        git clone https://github.com/sandstorm-io/capnproto.git
-#        cd capnproto
-#        git checkout release-0.9.0
-#        cd c++
-#        mkdir _build
-#        cd _build
-#        cmake .. -G "Visual Studio 16 2019" -A x64
-#        cmake --build . --parallel --config Release
-#        cmake --build . --target install --config Release
-
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules:  'true'
         fetch-depth: 0
-
-    - name: Download NPCAP
-      run: |
-        cd %GITHUB_WORKSPACE%
-        powershell -Command "& 'build_win\download_npcap.ps1'"
-      shell: cmd
 
     - name: Create Python virtualenv
       run: |
@@ -89,23 +61,23 @@ jobs:
         mkdir "${{ runner.workspace }}\_build\sdk\"
         cd "${{ runner.workspace }}/_build/sdk"
 
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 ^
-        -DHAS_HDF5=ON ^
-        -DHAS_QT5=ON ^
-        -DHAS_CURL=OFF ^
-        -DHAS_CAPNPROTO=OFF ^
-        -DHAS_FTXUI=ON ^
-        -DBUILD_DOCS=OFF ^
-        -DBUILD_APPS=OFF ^
-        -DBUILD_SAMPLES=OFF ^
-        -DBUILD_TIME=ON ^
-        -DBUILD_PY_BINDING=OFF ^
-        -DBUILD_CSHARP_BINDING=OFF ^
-        -DBUILD_ECAL_TESTS=OFF ^
-        -DECAL_INCLUDE_PY_SAMPLES=OFF ^
+        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v142 ^
+        -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=cmake/submodule_dependencies.cmake ^
+        -DECAL_USE_HDF5=ON ^
+        -DECAL_USE_QT=ON ^
+        -DECAL_USE_CURL=OFF ^
+        -DECAL_USE_CAPNPROTO=OFF ^
+        -DECAL_USE_FTXUI=ON ^
+        -DECAL_BUILD_DOCS=OFF ^
+        -DECAL_BUILD_APPS=OFF ^
+        -DECAL_BUILD_APP_SDK=ON ^
+        -DECAL_BUILD_SAMPLES=OFF ^
+        -DECAL_BUILD_TIMEPLUGINS=ON ^
+        -DECAL_BUILD_PY_BINDING=OFF ^
+        -DECAL_BUILD_CSHARP_BINDING=OFF ^
+        -DECAL_BUILD_TESTS=OFF ^
         -DECAL_INSTALL_SAMPLE_SOURCES=OFF ^
-        -DECAL_JOIN_MULTICAST_TWICE=OFF ^
-        -DECAL_NPCAP_SUPPORT=ON ^
+        -DECAL_USE_NPCAP=ON ^
         -DECAL_THIRDPARTY_BUILD_CMAKE_FUNCTIONS=ON ^
         -DECAL_THIRDPARTY_BUILD_PROTOBUF=ON ^
         -DECAL_THIRDPARTY_BUILD_SPDLOG=ON ^
@@ -117,35 +89,34 @@ jobs:
         -DECAL_THIRDPARTY_BUILD_RECYCLE=ON ^
         -DECAL_THIRDPARTY_BUILD_TCP_PUBSUB=ON ^
         -DECAL_THIRDPARTY_BUILD_QWT=OFF ^
-        -DECAL_THIRDPARTY_BUILD_YAML-CPP=OFF ^
         -DECAL_THIRDPARTY_BUILD_UDPCAP=ON ^
         -DBUILD_SHARED_LIBS=OFF ^
         -DCMAKE_PREFIX_PATH="%ProgramFiles%/Cap'n Proto/lib/cmake/CapnProto" ^
         -DCMAKE_BUILD_TYPE=Debug ^
-        -DCPACK_PACK_WITH_INNOSETUP=OFF
+        -DECAL_CPACK_PACK_WITH_INNOSETUP=OFF
       shell: cmd
 
     - name: CMake Complete
       run: |
         CALL "${{ runner.workspace }}\.venv\Scripts\activate.bat"
         cd "${{ runner.workspace }}/_build/complete"
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 ^
-        -DHAS_HDF5=ON ^
-        -DHAS_QT5=ON ^
-        -DHAS_CURL=ON ^
-        -DHAS_CAPNPROTO=OFF ^
-        -DHAS_FTXUI=ON ^
-        -DBUILD_DOCS=ON ^
-        -DBUILD_APPS=ON ^
-        -DBUILD_SAMPLES=ON ^
-        -DBUILD_TIME=ON ^
-        -DBUILD_PY_BINDING=ON ^
-        -DBUILD_CSHARP_BINDING=ON ^
-        -DBUILD_ECAL_TESTS=ON ^
-        -DECAL_INCLUDE_PY_SAMPLES=OFF ^
+        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v142 ^
+        -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=cmake/submodule_dependencies.cmake ^
+        -DECAL_USE_HDF5=ON ^
+        -DECAL_USE_QT=ON ^
+        -DECAL_USE_CURL=ON ^
+        -DECAL_USE_CAPNPROTO=OFF ^
+        -DECAL_USE_FTXUI=ON ^
+        -DECAL_BUILD_DOCS=ON ^
+        -DECAL_BUILD_APPS=ON ^
+        -DECAL_BUILD_APP_SDK=ON ^
+        -DECAL_BUILD_SAMPLES=ON ^
+        -DECAL_BUILD_TIMEPLUGINS=ON ^
+        -DECAL_BUILD_PY_BINDING=OFF ^
+        -DECAL_BUILD_CSHARP_BINDING=ON ^
+        -DECAL_BUILD_TESTS=ON ^
         -DECAL_INSTALL_SAMPLE_SOURCES=ON ^
-        -DECAL_JOIN_MULTICAST_TWICE=OFF ^
-        -DECAL_NPCAP_SUPPORT=ON ^
+        -DECAL_USE_NPCAP=ON ^
         -DECAL_THIRDPARTY_BUILD_CMAKE_FUNCTIONS=ON ^
         -DECAL_THIRDPARTY_BUILD_PROTOBUF=ON ^
         -DECAL_THIRDPARTY_BUILD_SPDLOG=ON ^
@@ -157,14 +128,11 @@ jobs:
         -DECAL_THIRDPARTY_BUILD_RECYCLE=ON ^
         -DECAL_THIRDPARTY_BUILD_TCP_PUBSUB=ON ^
         -DECAL_THIRDPARTY_BUILD_QWT=ON ^
-        -DECAL_THIRDPARTY_BUILD_YAML-CPP=ON ^
         -DECAL_THIRDPARTY_BUILD_UDPCAP=ON ^
         -DBUILD_SHARED_LIBS=OFF ^
         -DCMAKE_PREFIX_PATH="%ProgramFiles%/Cap'n Proto/lib/cmake/CapnProto" ^
         -DCMAKE_BUILD_TYPE=Release ^
-        -DCPACK_PACK_WITH_INNOSETUP=ON
-        mkdir "%ALLUSERSPROFILE%\eCAL"
-        copy "%GITHUB_WORKSPACE%\ecal\core\cfg\ecal.ini" "%ALLUSERSPROFILE%\eCAL"
+        -DECAL_CPACK_PACK_WITH_INNOSETUP=ON        
       shell: cmd
 
     - name: Build SDK
@@ -175,91 +143,13 @@ jobs:
       run: cmake --build . --config Release
       working-directory: ${{ runner.workspace }}/_build/complete
 
-    # Create Python.
-    # The strang-looking double-cmake is an ugly workaround to force CMake to
-    # re-find Python, after we have changed the venv from the outside. The
-    # alternative would be to clean everything, which would cause an unnecessary
-    # rebuild of eCAL and HDF5 for each python Version.
-    - name: Build Python 3.11 Wheel
+    - name: Create config path and copy ecal.yaml
       run: |
-        mkdir ".venv_311"
-        py -3.11 -m venv ".venv_311"
-        CALL ".venv_311\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
-      shell: cmd
+           mkdir "%ALLUSERSPROFILE%\eCAL"
+           copy ".\ecal\core\cfg\ecal.yaml" "%ALLUSERSPROFILE%\eCAL"
       working-directory: ${{ runner.workspace }}/_build/complete
-
-    - name: Build Python 3.10 Wheel
-      run: |
-        mkdir ".venv_310"
-        py -3.10 -m venv ".venv_310"
-        CALL ".venv_310\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
       shell: cmd
-      working-directory: ${{ runner.workspace }}/_build/complete
-
-    - name: Build Python 3.9 Wheel
-      run: |
-        mkdir ".venv_39"
-        py -3.9 -m venv ".venv_39"
-        CALL ".venv_39\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
-      shell: cmd
-      working-directory: ${{ runner.workspace }}/_build/complete
-
-    - name: Build Python 3.8 Wheel
-      run: |
-        mkdir ".venv_38"
-        py -3.8 -m venv ".venv_38"
-        CALL ".venv_38\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
-      shell: cmd
-      working-directory: ${{ runner.workspace }}/_build/complete
-
-    - name: Build Python 3.7 Wheel
-      run: |
-        mkdir ".venv_37"
-        py -3.7 -m venv ".venv_37"
-        CALL ".venv_37\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
-      shell: cmd
-      working-directory: ${{ runner.workspace }}/_build/complete
-
-    - name: Build Python 3.6 Wheel
-      run: |
-        mkdir ".venv_36"
-        py -3.6 -m venv ".venv_36"
-        CALL ".venv_36\Scripts\activate.bat"
-        pip install wheel
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=FIRST
-        cmake %GITHUB_WORKSPACE% -G "Visual Studio 16 2019" -A x64 -T v140 -DPython_FIND_VIRTUALENV=ONLY
-        cmake --build . --target create_python_wheel --config Release
-      shell: cmd
-      working-directory: ${{ runner.workspace }}/_build/complete
-
-#    - name: Build Documentation C
-#      run: cmake --build . --target documentation_c
-#      working-directory: ${{ runner.workspace }}/_build
-#
-#    - name: Build Documentation C++
-#      run: cmake --build . --target documentation_cpp
-#      working-directory: ${{ runner.workspace }}/_build
-
+    
     - name: Run Tests
       run: ctest -C Release -V
       working-directory: ${{ runner.workspace }}/_build/complete
@@ -272,47 +162,52 @@ jobs:
       run: cpack -C Release
       working-directory: ${{ runner.workspace }}/_build/complete
 
-    - name: Detect certificate
-      id: cert
-      if: env.IS_GITHUB_SIGNING_ALLOWED == 'true'
+    - name: Get Project version from git tag
+      shell: powershell
       run: |
-        if ($Env:CERT_BODY -and $Env:CERT_PSWD -and $Env:CERT_ALGO -and $Env:CERT_HASH) {
-          Write-Output "ATTENTION: a certificate is available"
-          Write-Output "IS_GITHUB_SIGNING_ENABLED=true" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
-        } else {
-          Write-Output "WARNING: a certificate is not available"
-        }
-      env:
-        CERT_BODY: ${{ secrets.CERT_BODY }}
-        CERT_PSWD: ${{ secrets.CERT_PSWD }}
-        CERT_ALGO: ${{ secrets.CERT_ALGO }}
-        CERT_HASH: ${{ secrets.CERT_HASH }}
+        # Use git describe to get the tag / commit description
+        $VERSION = git describe --tags --dirty
 
-    # https://github.com/OrhanKupusoglu/code-sign-action
-    - name: Sign the installer
-      if: env.IS_GITHUB_SIGNING_ENABLED == 'true'
-      uses: OrhanKupusoglu/code-sign-action@v5.5.1
-      with:
-        cert_body: ${{ secrets.CERT_BODY }}
-        cert_pswd: ${{ secrets.CERT_PSWD }}
-        cert_algo: ${{ secrets.CERT_ALGO }}
-        cert_hash: ${{ secrets.CERT_HASH }}
-        folder: ${{ runner.workspace }}/_build/complete/_deploy
-        debug: false
+        #remove the leading 'v' from the tag, if it exists
+        $VERSION = $VERSION -replace '^v', ''
+        
+        echo "VERSION=$VERSION" >> "$Env:GITHUB_ENV"
+
+    - name: Set output binary name
+      shell: powershell
+      run: |
+        $BINARY_NAME = "ecal_${{ env.VERSION }}-win64"
+        echo "BINARY_NAME=$BINARY_NAME" >> "$Env:GITHUB_ENV"
+
+    - name: Rename the setup exe
+      shell: powershell
+      run: |
+        $LS_OUT = ls *.exe
+        $SETUP_NAME = "$($LS_OUT.Name)"
+        Rename-Item -Path "$SETUP_NAME" -NewName "${{ env.BINARY_NAME }}.exe"
+      working-directory: ${{ runner.workspace }}/_build/complete/_deploy/
 
     - name: Upload Windows setup
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: windows-setup
+        name: unsigned-setup
         path: ${{ runner.workspace }}/_build/complete/_deploy/*.exe
 
-    - name: Upload Python Wheels
-      uses: actions/upload-artifact@v3
-      with:
-        name: windows-python-wheels
-        path: ${{ runner.workspace }}/_build/complete/_deploy/*.whl
-
     # --------------------------------------------------------------------------------------------------
+
+  sign-windows-installer:
+    if: github.repository == 'eclipse-ecal/ecal'
+    runs-on: windows-2019
+    needs: build-windows
+
+    steps:
+
+    # Download the installer from the previous job
+    - name: Download Windows setup
+      uses: actions/download-artifact@v4
+      with:
+        name: unsigned-setup
+        path: ${{ runner.workspace }}/_build/complete/_deploy
 
     - name: Sign the installer on Eclipse CI
       if: env.IS_JENKINS_SIGNING_ALLOWED == 'true' && env.JENKINS_USERNAME != '' && env.JENKINS_API_TOKEN != '' && env.JENKINS_JOB_TOKEN != ''
@@ -326,8 +221,8 @@ jobs:
         $JENKINS_CRUMB_URL = "$JENKINS_BASE_URL/crumbIssuer/api/json"
         $JENKINS_JOB_URL = "$JENKINS_BASE_URL/job/$JENKINS_JOB"
         $JENKINS_TRIGGER_URL = "$JENKINS_JOB_URL/buildWithParameters?token=$Env:JENKINS_JOB_TOKEN"
-        $WAIT_FOR_JENKINS_SEC = 5
-        $COUNTER_LIMIT = 20
+        $WAIT_FOR_JENKINS_SEC = 10
+        $COUNTER_LIMIT = 30
         $RESPONSE_CODE = 0
         $CRUMB_ID = ''
         $CRUMB_FIELD = ''
@@ -481,9 +376,17 @@ jobs:
         JENKINS_JOB_TOKEN: ${{ secrets.JENKINS_TOKEN_GH_FILE }} 
       working-directory: ${{ runner.workspace }}/_build/complete/_deploy
 
+    - name: Determine name of the installer for zip file
+      if: env.IS_DOWNLOAD_AVAILABLE == 'true'
+      shell: powershell
+      run: |
+        $INSTALLER_NAME = "${{ env.ASSET_NAME }}"
+        $INSTALLER_NAME_WITHOUT_EXE = $INSTALLER_NAME.Substring(0, $INSTALLER_NAME.Length - 4)
+        echo "ARTIFACT_NAME=$INSTALLER_NAME_WITHOUT_EXE" >> "$Env:GITHUB_ENV"
+
     - name: Upload Windows setup signed on Eclipse CI
       if: env.IS_DOWNLOAD_AVAILABLE == 'true'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: windows-setup-eclipse
+        name: ${{ env.ARTIFACT_NAME }}
         path: ${{ runner.workspace }}/_build/complete/_deploy/${{ env.ASSET_NAME }}

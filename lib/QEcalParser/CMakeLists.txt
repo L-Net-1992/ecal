@@ -18,11 +18,12 @@
 
 project(QEcalParser)
 
-find_package(Qt5 COMPONENTS
-    Core
-    Widgets
-REQUIRED)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Legacy Qt5 (pre 5.15) support as suggested by teh Qt Documentation:
+# https://doc.qt.io/qt-6/cmake-qt5-and-qt6-compatibility.html#supporting-older-qt-5-versions
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF) # Reason for being turned off: AutoUIC will prevent VS from detecting changes in .ui files
@@ -56,10 +57,19 @@ set(qecalparser_resources
 )
 
 # compile qt resource files and ui files
-qt5_add_resources(autogen_resources ${qecalparser_resources})
-qt5_wrap_ui      (autogen_ui        ${qecalparser_ui})
 
-add_library (${PROJECT_NAME}
+if (${QT_VERSION_MAJOR} GREATER 5)
+    qt_add_resources(autogen_resources ${qecalparser_resources})
+    qt_wrap_ui      (autogen_ui        ${qecalparser_ui})
+else()
+    qt5_add_resources(autogen_resources ${qecalparser_resources})
+    qt5_wrap_ui      (autogen_ui        ${qecalparser_ui})
+endif()
+
+
+# QEcalParser is an internal implementation detail for applications so it can
+# always be static and not installed/exported
+ecal_add_static_library(${PROJECT_NAME}
     ${qecalparser_includes}
     ${qecalparser_src}
     ${qecalparser_ui}
@@ -75,8 +85,8 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-    Qt5::Core
-    Qt5::Widgets
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
   PRIVATE
     CustomQt
     EcalParser

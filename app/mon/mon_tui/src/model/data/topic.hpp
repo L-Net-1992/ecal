@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,19 +25,9 @@
 
 struct Topic
 {
-  enum class QOSReliability
-  {
-    BEST_EFFORT, RELIABLE
-  };
-
-  enum class QOSHistoryKind
-  {
-    KEEP_LAST, KEEP_ALL
-  };
-
   enum class TransportLayer
   {
-    NONE, UDP_MC, SHM, TCP, INPROC, ALL
+    NONE, UDP_MC, SHM, TCP, ALL
   };
 
   enum class Direction
@@ -46,19 +36,16 @@ struct Topic
   };
 
   int32_t registration_clock;
-  int32_t host_id;
   std::string host_name;
-  int32_t pid;
+  int32_t process_id;
   std::string process_name;
   std::string unit_name;
   std::string id;
   std::string name;
   Direction direction;
+  std::string encoding;
   std::string type;
   std::string type_descriptor;
-  QOSHistoryKind history_kind;
-  int32_t history_depth;
-  QOSReliability reliability;
   std::vector<TransportLayer> transport_layers;
   int32_t size;
   int32_t local_connections_count;

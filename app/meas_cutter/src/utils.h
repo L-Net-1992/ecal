@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,14 +26,15 @@
 #include <fstream>
 #include <algorithm>
 
-#define YAML_CPP_STATIC_DEFINE
+//#define YAML_CPP_STATIC_DEFINE // set by CMake
 #include "yaml-cpp/yaml.h"
 
-#include <ecalhdf5/eh5_meas.h>
 #include <ecal_utils/str_convert.h>
 #include <ecal_utils/filesystem.h>
 
 #include "logger.h"
+
+#include <ecal/measurement/base/types.h>
 
 namespace eCALMeasCutterUtils
 {
@@ -311,10 +312,10 @@ namespace eCALMeasCutterUtils
   {
     Timestamp receiver_timestamp;
     Timestamp sender_timestamp;
-    uint64_t sender_id;
-    uint64_t sender_clock;
+    int64_t sender_id;
+    int64_t sender_clock;
 
-      std::array<char,64> __union_size;
+    std::array<char,64> __union_size;
   };
 
   typedef std::unordered_map<MetaDatumKey, MetaDatumValue, MetaDatumHash> MetaData;
@@ -339,6 +340,6 @@ namespace eCALMeasCutterUtils
   {
     ChannelInfo _channel_info;
     TimestampSet _timestamps;
-    std::unordered_map<Timestamp, eCAL::eh5::SEntryInfo> _timestamp_entry_info_map;
+    std::unordered_map<Timestamp, eCAL::experimental::measurement::base::EntryInfo> _timestamp_entry_info_map;
   };
 }

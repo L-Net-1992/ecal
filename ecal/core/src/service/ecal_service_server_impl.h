@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,106 +18,109 @@
 */
 
 /**
- * @brief  eCAL service server interface
+ * @brief  eCAL service server implementation
 **/
 
 #pragma once
 
-#include <ecal/ecal.h>
-#include <ecal/ecal_callback.h>
+#include <ecal/namespace.h>
+#include <ecal/v5/ecal_callback.h>
+#include <ecal/service/types.h>
+#include <ecal_service/server.h>
 
-#include "ecal_tcpserver.h"
+#include "serialization/ecal_serialize_sample_registration.h"
+#include "serialization/ecal_struct_service.h"
 
-#ifdef _MSC_VER
-#pragma warning(push, 0) // disable proto warnings
-#endif
-#include <ecal/core/pb/ecal.pb.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-
+#include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <string>
 
 namespace eCAL
 {
   /**
-   * @brief Service server implementation class.
-  **/
-  class CServiceServerImpl
+   * @brief Implementation class for eCAL service server.
+   */
+  class CServiceServerImpl : public std::enable_shared_from_this<CServiceServerImpl>
   {
   public:
-    CServiceServerImpl();
-    CServiceServerImpl(const std::string& service_name_);
+    // Factory method to create an instance of the client implementation
+    static std::shared_ptr<CServiceServerImpl> CreateInstance(
+      const std::string& service_name_, const ServerEventCallbackT& event_callback_);
 
+  private:
+    // Private constructor to enforce creation through factory method
+    CServiceServerImpl(const std::string& service_name_, const ServerEventCallbackT& event_callback_);
+
+  public:
     ~CServiceServerImpl();
 
-    bool Create(const std::string& service_name_);
+    bool SetMethodCallback(const SServiceMethodInformation& method_info_, const ServiceMethodCallbackT& callback_);
+    bool RemoveMethodCallback(const std::string& method_);
 
-    bool Destroy();
+    // Check connection state of a specific service
+    bool IsConnected() const;
 
-    bool AddDescription(const std::string& method_, const std::string& req_type_, const std::string& req_desc_, const std::string& resp_type_, const std::string& resp_desc_);
-      
-    // add and remove callback function for server method calls
-    bool AddMethodCallback(const std::string& method_, const std::string& req_type_, const std::string& resp_type_, const MethodCallbackT& callback_);
-    bool RemMethodCallback(const std::string& method_);
+    // Called by the registration receiver to process a client registration
+    void RegisterClient(const std::string& key_, const v5::SClientAttr& client_);
 
-    // add and remove callback function for server events
-    bool AddEventCallback(eCAL_Server_Event type_, ServerEventCallbackT callback_);
-    bool RemEventCallback(eCAL_Server_Event type_);
-      
-    // check connection state
-    bool IsConnected();
+    // Called by the registration provider to get a registration sample
+    Registration::Sample GetRegistration();
 
-    // called by the eCAL::CServiceGate to register a client
-    void RegisterClient(const std::string& key_, const SClientAttr& client_);
+    // Retrieves the service id
+    SServiceId GetServiceId() const;
 
-    // called by eCAL:CServiceGate every second to update registration layer
-    void RefreshRegistration();
+    // Retrieves the service name
+    std::string GetServiceName() const;
 
-    std::string GetServiceName() { return m_service_name; };
-
-    // this object must not be copied.
+    // Prevent copy and move operations
     CServiceServerImpl(const CServiceServerImpl&) = delete;
     CServiceServerImpl& operator=(const CServiceServerImpl&) = delete;
+    CServiceServerImpl(CServiceServerImpl&&) = delete;
+    CServiceServerImpl& operator=(CServiceServerImpl&&) = delete;
 
-  protected:
-    /**
-     * @brief Calls the request callback based on the request and fills the response
-     * 
-     * @param[in]  request_   The service request in serialized protobuf form
-     * @param[out] response_  A serialized protobuf response. My not be set at all.
-     * 
-     * @return always 0.
-     */
-    int RequestCallback(const std::string& request_, std::string& response_);
-    void EventCallback(eCAL_Server_Event event_, const std::string& message_);
+  private:
+    // Start/Stop server
+    void Start();
+    void Stop();
 
-    bool ApplyServiceToDescGate(const std::string& method_name_
-      , const std::string& req_type_name_
-      , const std::string& req_type_desc_
-      , const std::string& resp_type_name_
-      , const std::string& resp_type_desc_);
+    // Prepare and retrieve registration and unregistration samples
+    Registration::Sample GetRegistrationSample();
+    Registration::Sample GetUnregistrationSample();
 
-    CTcpServer         m_tcp_server;
+    // Request and event callback methods
+    int RequestCallback(const std::string& request_pb_, std::string& response_pb_);
+    void NotifyEventCallback(const SServiceId& service_id_, eServerEvent event_type_, const std::string& message_);
 
-    std::string        m_service_name;
-    std::string        m_service_id;
+    // Server version (incremented for protocol or functionality changes)
+    static constexpr int                   m_server_version = 1;
 
+    // Server attributes
+    std::string                            m_service_name;
+    EntityIdT                m_service_id;
+
+    // Server connection state and synchronization
+    mutable std::mutex                     m_connected_mutex; // mutex protecting m_connected (modified by the event callbacks in another thread)
+    bool                                   m_connected = false;
+    std::atomic<bool>                      m_created;
+
+    // Server method map and synchronization
     struct SMethod
     {
-      eCAL::pb::Method method_pb;
-      MethodCallbackT  callback;
+      Service::Method     method;
+      ServiceMethodCallbackT callback;
     };
-    std::mutex         m_method_map_sync;
-    typedef std::map<std::string, SMethod> MethodMapT;
-    MethodMapT m_method_map;
 
-    std::mutex         m_event_callback_map_sync;
-    typedef std::map<eCAL_Server_Event, ServerEventCallbackT> EventCallbackMapT;
-    EventCallbackMapT  m_event_callback_map;
-    
-    bool               m_connected;
-    bool               m_created;
+    using MethodMapT = std::map<std::string, SMethod>;
+    std::mutex                             m_method_map_mutex;
+    MethodMapT                             m_method_map;
+
+    // Event callback and synchronization
+    std::mutex                             m_event_callback_mutex;
+    ServerEventCallbackT                   m_event_callback;
+
+    // Server interface
+    std::shared_ptr<ecal_service::Server> m_tcp_server;
   };
 }

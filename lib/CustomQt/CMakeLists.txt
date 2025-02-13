@@ -18,11 +18,12 @@
 
 project(CustomQt)
 
-find_package(Qt5 COMPONENTS
-    Core
-    Widgets
-REQUIRED)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Legacy Qt5 (pre 5.15) support as suggested by teh Qt Documentation:
+# https://doc.qt.io/qt-6/cmake-qt5-and-qt6-compatibility.html#supporting-older-qt-5-versions
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -65,7 +66,9 @@ set(custom_qt_src
   src/QToolTipMenu.cpp
 )
 
-add_library (${PROJECT_NAME}
+# CustomQt is only used for the implementation of the GUI applications and
+# monitor plugins so it can always be static and never installed/exported
+ecal_add_static_library(${PROJECT_NAME}
   ${custom_qt_includes}
   ${custom_qt_src}
 )
@@ -74,9 +77,9 @@ target_include_directories(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_link_libraries(${PROJECT_NAME}
-    Qt5::Core
-    Qt5::Widgets
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)

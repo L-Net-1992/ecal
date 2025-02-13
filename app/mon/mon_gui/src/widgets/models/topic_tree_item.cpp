@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,9 @@
 
 #include "topic_tree_item.h"
 
-#include <QColor>
 #include <QFont>
+#include <QString>
+#include <QByteArray>
 
 #include "item_data_roles.h"
 
@@ -28,19 +29,9 @@
 
 #include <ecal/ecal.h>
 
-TopicTreeItem::TopicTreeItem()
-  : QAbstractTreeItem()
-{
-}
-
 TopicTreeItem::TopicTreeItem(const eCAL::pb::Topic& topic)
-  : QAbstractTreeItem()
 {
   update(topic);
-}
-
-TopicTreeItem::~TopicTreeItem()
-{
 }
 
 QVariant TopicTreeItem::data(int column, Qt::ItemDataRole role) const
@@ -50,125 +41,90 @@ QVariant TopicTreeItem::data(int column, Qt::ItemDataRole role) const
 
 QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 {
+
   if (role == (Qt::ItemDataRole)ItemDataRoles::RawDataRole) //-V1016 //-V547
   {
-    if (column == Columns::RCLOCK)
+    if (column == Columns::REGISTRATION_CLOCK)
     {
-      return topic_.rclock();
+      return topic_.registration_clock();
     }
-    else if (column == Columns::HNAME)
+    else if (column == Columns::HOST_NAME)
     {
-      return topic_.hname().c_str();
+      return topic_.host_name().c_str();
     }
-    else if (column == Columns::PID)
+    else if (column == Columns::SHM_TRANSPORT_DOMAIN)
     {
-      return topic_.pid();
+      return topic_.shm_transport_domain().c_str();
     }
-    else if (column == Columns::PNAME)
+    else if (column == Columns::PROCESS_ID)
     {
-      return topic_.pname().c_str();
+      return topic_.process_id();
     }
-    else if (column == Columns::UNAME)
+    else if (column == Columns::PROCESS_NAME)
     {
-      return topic_.uname().c_str();
+      return topic_.process_name().c_str();
     }
-    else if (column == Columns::TID)
+    else if (column == Columns::UNIT_NAME)
     {
-      return topic_.tid().c_str();
+      return topic_.unit_name().c_str();
     }
-    else if (column == Columns::TNAME)
+    else if (column == Columns::TOPIC_ID)
     {
-      return topic_.tname().c_str();
+      return topic_.topic_id().c_str();
+    }
+    else if (column == Columns::TOPIC_NAME)
+    {
+      return topic_.topic_name().c_str();
     }
     else if (column == Columns::DIRECTION)
     {
       return topic_.direction().c_str();
     }
+    else if (column == Columns::TENCODING)
+    {
+      return topic_.datatype_information().encoding().c_str();
+    }
     else if (column == Columns::TTYPE)
     {
-      // When the monitor didn't tell us the topic type, we ask eCAL::Util instead
-      std::string monitor_topic_type = topic_.ttype();
-      if (!monitor_topic_type.empty())
-      {
-        return monitor_topic_type.c_str();
-      }
-      else
-      {
-        std::string monitor_topic_name = topic_.tname();
-        if (!monitor_topic_name.empty())
-        {
-          return eCAL::Util::GetTopicTypeName(monitor_topic_name).c_str();
-        }
-      }
-      return "";
+      return topic_.datatype_information().name().c_str();
     }
     else if (column == Columns::TDESC)
     {
-      return topic_.tdesc().c_str();
+      return topic_.datatype_information().descriptor_information().c_str();
     }
-    else if (column == Columns::TQOS)
-    {
-      auto reliability = topic_.tqos().reliability();
-
-      QString qos_string;
-
-      if (reliability == eCAL::pb::QOS::eQOSPolicy_Reliability::QOS_eQOSPolicy_Reliability_reliable_reliability_qos)
-      {
-        auto topic_tqos = topic_.tqos();
-        qos_string += "Reliable";
-
-        auto history = topic_tqos.history();
-        if (history == eCAL::pb::QOS::eQOSPolicy_HistoryKind::QOS_eQOSPolicy_HistoryKind_keep_all_history_qos)
-        {
-          qos_string += " (History: unlimited)";
-        }
-        else if (history == eCAL::pb::QOS::eQOSPolicy_HistoryKind::QOS_eQOSPolicy_HistoryKind_keep_last_history_qos)
-        {
-          qos_string += (" (History: " + QString::number(topic_tqos.history_depth()) + ")");
-        }
-      }
-      else
-      {
-        if (reliability == eCAL::pb::QOS::eQOSPolicy_Reliability::QOS_eQOSPolicy_Reliability_best_effort_reliability_qos)
-        {
-          qos_string += "Best effort";
-        }
-      }
-      return qos_string;
-    }
-    else if (column == Columns::TLAYER)
+    else if (column == Columns::TRANSPORT_LAYER)
     {
       QList<QVariant> layers;
-      auto layer_pb = topic_.tlayer();
-      for (auto layer = layer_pb.begin(); layer != layer_pb.end(); layer++)
+      auto layer_pb = topic_.transport_layer();
+      for (const auto& layer : layer_pb)
       {
-        layers.push_back((*layer).type());
+        layers.push_back(layer.type());
       }
       return layers;
     }
-    else if (column == Columns::TSIZE)
+    else if (column == Columns::TOPIC_SIZE)
     {
-      return topic_.tsize();
+      return topic_.topic_size();
     }
-    else if (column == Columns::CONNECTIONS_LOC)
+    else if (column == Columns::CONNECTIONS_LOCAL)
     {
-      return topic_.connections_loc();
+      return topic_.connections_local();
     }
-    else if (column == Columns::CONNECTIONS_EXT)
+    else if (column == Columns::CONNECTIONS_EXTERNAL)
     {
-      return topic_.connections_ext();
+      return topic_.connections_external();
     }
     else if (column == Columns::MESSAGE_DROPS)
     {
       return topic_.message_drops();
     }
-    else if (column == Columns::DCLOCK)
+    else if (column == Columns::DATA_CLOCK)
     {
-      return (long long)topic_.dclock();
+      return (long long)topic_.data_clock();
     }
     else if (column == Columns::DFREQ)
     {
-      return topic_.dfreq();
+      return topic_.data_frequency();
     }
     else
     {
@@ -178,44 +134,68 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if ((role == Qt::ItemDataRole::DisplayRole) || (role == Qt::ItemDataRole::ToolTipRole))
   {
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME)
-      || (column == Columns::TNAME)
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME)
+      || (column == Columns::TOPIC_NAME)
       || (column == Columns::DIRECTION)
+      || (column == Columns::TENCODING)
       || (column == Columns::TTYPE))
     {
-      QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
+      const QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
       return (!raw_data.isEmpty() ? raw_data : "- ? -");
     }
-    else if (column == Columns::TLAYER)
+    else if (column == Columns::TDESC)
+    {
+      const std::string& raw_data = topic_.datatype_information().descriptor_information();
+
+      if (!raw_data.empty())
+      {
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+        const quint16 crc16 = qChecksum(raw_data.data(), static_cast<uint>(raw_data.length()));
+#else
+        const quint16 crc16 = qChecksum(raw_data);
+#endif
+      
+        const QString crc16_string = QString("%1").arg(QString::number(crc16, 16).toUpper(), 4, '0');
+        const QString size_text    = QString::number(raw_data.size()) + " byte" + (raw_data.size() != 1 ? "s" : "")
+                                     + " (CRC16: " + crc16_string + ")";
+
+        return size_text;
+      }
+      else
+      {
+        return "None";
+      }
+    }
+    else if (column == Columns::TRANSPORT_LAYER)
     {
       QString layer_string;
 
-      auto layer_pb = topic_.tlayer();
+      auto layer_pb = topic_.transport_layer();
 
-      for (auto layer = layer_pb.begin(); layer != layer_pb.end(); layer++)
+      for (const auto& layer : layer_pb)
       {
         QString this_layer_string;
-        switch ((*layer).type())
+        if (layer.active())
         {
-        case eCAL::pb::eTLayerType::tl_ecal_tcp:
-          this_layer_string = "tcp";
-          break;
-        case eCAL::pb::eTLayerType::tl_ecal_udp_mc:
-          this_layer_string = "udp_mc";
-          break;
-        case eCAL::pb::eTLayerType::tl_ecal_shm:
-          this_layer_string = "shm";
-          break;
-        case eCAL::pb::eTLayerType::tl_inproc:
-          this_layer_string = "inproc";
-          break;
-        case eCAL::pb::eTLayerType::tl_all:
-          this_layer_string = "all";
-          break;
-        default:
-          this_layer_string = ("Unknown (" + QString::number((int)(*layer).type()) + ")");
+          switch (layer.type())
+          {
+          case eCAL::pb::eTransportLayerType::tl_ecal_tcp:
+            this_layer_string = "tcp";
+            break;
+          case eCAL::pb::eTransportLayerType::tl_ecal_udp_mc:
+            this_layer_string = "udp_mc";
+            break;
+          case eCAL::pb::eTransportLayerType::tl_ecal_shm:
+            this_layer_string = "shm";
+            break;
+          case eCAL::pb::eTransportLayerType::tl_all:
+            this_layer_string = "all";
+            break;
+          default:
+            this_layer_string = ("Unknown (" + QString::number((int)layer.type()) + ")");
+          }
         }
 
         if (!layer_string.isEmpty() && !this_layer_string.isEmpty())
@@ -231,7 +211,7 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
     else if (column == Columns::DFREQ)
     {
-      long long raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toLongLong(); //-V1016
+      const long long raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toLongLong(); //-V1016
       return toFrequencyString(raw_data);
     }
     else
@@ -242,16 +222,24 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == (Qt::ItemDataRole)ItemDataRoles::SortRole) //-V1016 //-V547
   {
+    if (column == Columns::TDESC)
+    {
+      const std::string& raw_data = topic_.datatype_information().descriptor_information();
+      return static_cast<int>(raw_data.size());
+    }
+
     return data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole); //-V1016
   }
 
   else if (role == (Qt::ItemDataRole)ItemDataRoles::FilterRole) //-V1016 //-V547
   {
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME)
-      || (column == Columns::TNAME)
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::SHM_TRANSPORT_DOMAIN)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME)
+      || (column == Columns::TOPIC_NAME)
       || (column == Columns::DIRECTION)
+      || (column == Columns::TENCODING)
       || (column == Columns::TTYPE))
     {
       auto raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole); //-V1016
@@ -265,14 +253,14 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == Qt::ItemDataRole::TextAlignmentRole)
   {
-    if ((column == Columns::TID)
-      || (column == Columns::PID)
-      || (column == Columns::RCLOCK)
-      || (column == Columns::TSIZE)
-      || (column == Columns::CONNECTIONS_LOC)
-      || (column == Columns::CONNECTIONS_EXT)
+    if ((column == Columns::TOPIC_ID)
+      || (column == Columns::PROCESS_ID)
+      || (column == Columns::REGISTRATION_CLOCK)
+      || (column == Columns::TOPIC_SIZE)
+      || (column == Columns::CONNECTIONS_LOCAL)
+      || (column == Columns::CONNECTIONS_EXTERNAL)
       || (column == Columns::MESSAGE_DROPS)
-      || (column == Columns::DCLOCK)
+      || (column == Columns::DATA_CLOCK)
       || (column == Columns::DFREQ)
       )
     {
@@ -286,19 +274,19 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
 
   else if (role == (Qt::ItemDataRole)ItemDataRoles::GroupRole) //-V1016 //-V547
   {
-    if (column == Columns::PID)
+    if (column == Columns::PROCESS_ID)
     {
-      QStringList list{ topic_.hname().c_str(), QString::number(topic_.pid()) };
+      const QStringList list{ topic_.host_name().c_str(), QString::number(topic_.process_id()) };
       return list;
     }
-    else if (column == Columns::PNAME)
+    else if (column == Columns::PROCESS_NAME)
     {
-      QStringList list{topic_.hname().c_str(), topic_.pname().c_str()};
+      const QStringList list{topic_.host_name().c_str(), topic_.process_name().c_str()};
       return list;
     }
-    else if (column == Columns::UNAME)
+    else if (column == Columns::UNIT_NAME)
     {
-      QStringList list{ topic_.hname().c_str(), topic_.uname().c_str(), QString::number(topic_.pid()) };
+      const QStringList list{ topic_.host_name().c_str(), topic_.unit_name().c_str(), QString::number(topic_.process_id()) };
       return list;
     }
     else
@@ -310,25 +298,46 @@ QVariant TopicTreeItem::data(Columns column, Qt::ItemDataRole role) const
   else if (role == Qt::ItemDataRole::FontRole)
   {
 
-    if ((column == Columns::HNAME)
-      || (column == Columns::PNAME)
-      || (column == Columns::UNAME)
-      || (column == Columns::TNAME)
+    if ((column == Columns::HOST_NAME)
+      || (column == Columns::SHM_TRANSPORT_DOMAIN)
+      || (column == Columns::PROCESS_NAME)
+      || (column == Columns::UNIT_NAME)
+      || (column == Columns::TOPIC_NAME)
       || (column == Columns::DIRECTION)
+      || (column == Columns::TENCODING)
       || (column == Columns::TTYPE))
     {
-      QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
+      const QString raw_data = data(column, (Qt::ItemDataRole)ItemDataRoles::RawDataRole).toString(); //-V1016
       if (raw_data.isEmpty())
       {
         QFont font;
         font.setItalic(true);
+        font.setBold(itemfont.bold());
         return font;
       }
     }
-    return QVariant::Invalid;
+    else if (column == Columns::TDESC)
+    {
+      const std::string& raw_data = topic_.datatype_information().descriptor_information();
+      if (raw_data.empty())
+      {
+        QFont font;
+        font.setItalic(true);
+        font.setBold(itemfont.bold());
+        return font;
+      }
+    }
+
+    return itemfont;
   }
 
-  return QVariant::Invalid;
+  return QVariant(); // Invalid QVariant
+}
+
+bool TopicTreeItem::setFont(const QFont& font)
+{
+  itemfont = font;
+  return false;
 }
 
 int TopicTreeItem::type() const
@@ -363,5 +372,5 @@ QString TopicTreeItem::toFrequencyString(long long freq)
 
 std::string TopicTreeItem::topicId() const
 {
-  return topic_.tid();
+  return topic_.topic_id();
 }

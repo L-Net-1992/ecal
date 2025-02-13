@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,22 +23,15 @@
 
 #pragma once
 
+#include <ecal/namespace.h>
 #include "ecal_def.h"
-#include "ecal_expmap.h"
-
-#include <ecal/ecal_callback.h>
-
-#ifdef _MSC_VER
-#pragma warning(push, 0) // disable proto warnings
-#endif
-#include <ecal/core/pb/ecal.pb.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+#include "serialization/ecal_struct_sample_registration.h"
 
 #include <atomic>
+#include <map>
+#include <memory>
 #include <shared_mutex>
-#include <set>
+#include <string>
 
 namespace eCAL
 {
@@ -50,34 +43,21 @@ namespace eCAL
     CClientGate();
     ~CClientGate();
 
-    void Create();
-    void Destroy();
+    void Start();
+    void Stop();
 
-    bool Register  (CServiceClientImpl* client_);
-    bool Unregister(CServiceClientImpl* client_);
+    bool Register  (const std::string& service_name_, const std::shared_ptr<CServiceClientImpl>& client_);
+    bool Unregister(const std::string& service_name_, const std::shared_ptr<CServiceClientImpl>& client_);
 
-    void ApplyServiceRegistration(const eCAL::pb::Sample& ecal_sample_);
+    void ApplyServiceRegistration(const Registration::Sample& ecal_sample_);
 
-    std::vector<SServiceAttr> GetServiceAttr(const std::string& service_name_);
-
-    void RefreshRegistrations();
-
-    bool ApplyServiceToDescGate(const std::string& service_name_
-      , const std::string& method_name_
-      , const std::string& req_type_name_
-      , const std::string& req_type_desc_
-      , const std::string& resp_type_name_
-      , const std::string& resp_type_desc_);
+    void GetRegistrations(Registration::SampleList& reg_sample_list_);
 
   protected:
-    static std::atomic<bool>    m_created;
+    static std::atomic<bool>      m_created;
 
-    typedef std::set<CServiceClientImpl*> ServiceNameServiceImplSetT;
-    std::shared_timed_mutex     m_client_set_sync;
-    ServiceNameServiceImplSetT  m_client_set;
-
-    typedef Util::CExpMap<std::string, SServiceAttr> ConnectedMapT;
-    std::shared_timed_mutex     m_service_register_map_sync;
-    ConnectedMapT               m_service_register_map;
+    using ServiceNameClientIDImplMapT = std::multimap<std::string, std::shared_ptr<CServiceClientImpl>>;
+    std::shared_timed_mutex       m_service_client_map_mutex;
+    ServiceNameClientIDImplMapT   m_service_client_map;
   };
-};
+}

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 #include <condition_variable>
 
 #include <ecal/ecal.h>
-#include <ecal/ecal_client.h>
+#include <ecal/service/client.h>
 #include <ecal_utils/string.h>
 #include <rec_server_core/rec_server.h>
 #include <rec_client_core/ecal_rec_defs.h>
@@ -144,6 +144,9 @@ std::unique_ptr<eCAL::rec_cli::command::Record> record_command;
 int main(int argc, char** argv)
 {
 #ifdef WIN32
+  (void)argc; // suppress unused warning
+  (void)argv; // suppress unused warning
+
   EcalUtils::WinCpChanger win_cp_changer(CP_UTF8); // The WinCpChanger will set the Codepage back to the original, once destroyed
 #endif // WIN32
 
@@ -330,14 +333,14 @@ int main(int argc, char** argv)
   /************************************************************************/
   if (remote_control_arg.isSet()) // Remote-control-mode
   {
-    eCAL::Initialize(argc, argv, "eCALRec-Remote", eCAL::Init::All);
-    eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "Running");
+    eCAL::Initialize("eCALRec-Remote", eCAL::Init::All);
+    eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Running");
 
     remote_rec_server_service = std::make_shared<eCAL::protobuf::CServiceClient<eCAL::pb::rec_server::EcalRecServerService>>();
   }
   else                            // Non-remote control mode
   {
-    eCAL::Initialize(argc, argv, "eCALRec", eCAL::Init::All);
+    eCAL::Initialize("eCALRec", eCAL::Init::All);
 
     rec_server_instance = std::make_shared<eCAL::rec_server::RecServer>();
 
@@ -1487,7 +1490,7 @@ int main(int argc, char** argv)
   {
     std::cout << "Shutting down eCAL Rec..." << std::endl;
 
-    rec_server_service_server->Destroy(); // Prevent other applications to control this recorder from now on!
+    rec_server_service_server = nullptr; // Prevent other applications to control this recorder from now on!
 
     rec_server_instance      ->StopRecording();
     rec_server_instance      ->WaitForPendingRequests();
@@ -1517,7 +1520,7 @@ int main(int argc, char** argv)
   else
   {
     std::cout << "Shutting down remote-control for eCAL Rec..." << std::endl;
-    remote_rec_server_service->Destroy();
+    remote_rec_server_service = nullptr;
   }
 
   // TODO: On rare occations, eCAL rec hangs when hitting ctrl+c on linux. Remove the debug output, once that bug is found.
@@ -1568,9 +1571,9 @@ bool IsRecorderBusy(bool print_status)
       std::cout << "Waiting for the following events:" << std::endl;
 
     bool still_busy = false;
-    still_busy = still_busy || IsAnyClientFlushing   (print_status);
-    still_busy = still_busy || IsAnyClientUploading  (print_status);
-    still_busy = still_busy || IsBuiltInFtpServerBusy(print_status);
+    still_busy = IsAnyClientFlushing   (print_status) || still_busy;
+    still_busy = IsAnyClientUploading  (print_status) || still_busy;
+    still_busy = IsBuiltInFtpServerBusy(print_status) || still_busy;
 
     if (print_status && !still_busy)
     {

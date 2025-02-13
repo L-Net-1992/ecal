@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,28 +20,31 @@
 #include "ecalmon.h"
 
 #include "ecal/ecal.h"
-#include <ecal/ecal_config.h>
+#include <ecal/config.h>
 
 #include "widgets/about_dialog/about_dialog.h"
 #include "widgets/license_dialog/license_dialog.h"
 #include "widgets/plugin_settings_dialog/plugin_settings_dialog.h"
 #include "widgets/visualisation_widget/visualisation_dock_widget.h"
 
-#ifdef ECAL_NPCAP_SUPPORT
+#ifdef ECAL_USE_NPCAP
 #include "widgets/npcap_status_dialog/npcap_status_dialog.h"
-#endif //ECAL_NPCAP_SUPPORT
+#endif //ECAL_USE_NPCAP
 
 #include "ecalmon_globals.h"
 #include "plugin/plugin_manager.h"
 
 #include <QSettings>
-#include <QDesktopWidget>
 #include <QDesktopServices>
 #include <QDateTime>
 #include <QScreen>
 #include <QStyleFactory>
 #include <QLayout>
 #include <QUuid>
+
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
+#include <QDesktopWidget>
+#endif // QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
 
 #ifndef NDEBUG
   #ifdef _MSC_VER
@@ -68,9 +71,10 @@ Ecalmon::Ecalmon(QWidget *parent)
   , monitor_error_counter_(0)
 {
   // Just make sure that eCAL is initialized
-  eCAL::Initialize(0, nullptr, "eCALMon", eCAL::Init::Default | eCAL::Init::Monitoring);
-  eCAL::Monitoring::SetFilterState(false);
-  eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "Running");
+  auto config = eCAL::Init::Configuration();
+  config.logging.receiver.enable = true;
+  eCAL::Initialize(config, "eCALMon", eCAL::Init::Default | eCAL::Init::Monitoring);
+  eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Running");
 
   ui_.setupUi(this);
 
@@ -99,21 +103,21 @@ Ecalmon::Ecalmon(QWidget *parent)
 
     if (multicast_ttl <= 0)
     {
-      network_mode_widget_->setToolTip("ERROR: Network enabled but TTL is " + QString::number(multicast_ttl) + ". Change via ecal.ini");
+      network_mode_widget_->setToolTip("ERROR: Network enabled but TTL is " + QString::number(multicast_ttl) + ". Change via ecal.yaml");
       network_mode_widget_->setStyleSheet("background-color: rgb(255, 128, 128); color: black");
       network_mode_warning_icon_->setVisible(true);
     }
     else
     {
       network_mode_widget_->setStyleSheet("background-color: rgb(80, 255, 120); color: black");
-      network_mode_widget_->setToolTip("Change via ecal.ini");
+      network_mode_widget_->setToolTip("Change via ecal.yaml");
     }
   }
   else
   {
     network_mode_label_->setText("Network mode: Local");
     network_mode_widget_->setStyleSheet("background-color: rgb(44, 148, 255); color: black");
-    network_mode_widget_->setToolTip("Change via ecal.ini");
+    network_mode_widget_->setToolTip("Change via ecal.yaml");
   }
 
   error_label_                = new QLabel(this);
@@ -145,21 +149,24 @@ Ecalmon::Ecalmon(QWidget *parent)
   tabifyDockWidget(ui_.topics_dockwidget, ui_.processes_dockwidget);
   tabifyDockWidget(ui_.topics_dockwidget, ui_.host_dockwidget);
   tabifyDockWidget(ui_.topics_dockwidget, ui_.service_dockwidget);
+  tabifyDockWidget(ui_.topics_dockwidget, ui_.raw_monitoring_data_dockwidget);
   ui_.topics_dockwidget->raise();
 
-  log_widget_               = new LogWidget(this);
-  topic_widget_             = new TopicWidget(this);
-  process_widget_           = new ProcessWidget(this);
-  host_widget_              = new HostWidget(this);
-  service_widget_           = new ServiceWidget(this);
-  syste_information_widget_ = new SystemInformationWidget(this);
+  log_widget_                 = new LogWidget(this);
+  topic_widget_               = new TopicWidget(this);
+  process_widget_             = new ProcessWidget(this);
+  host_widget_                = new HostWidget(this);
+  service_widget_             = new ServiceWidget(this);
+  raw_monitoring_data_widget_ = new RawMonitoringDataWidget(this);
+  syste_information_widget_   = new SystemInformationWidget(this);
 
-  ui_.logging_dockwidget_content_frame_layout           ->addWidget(log_widget_);
-  ui_.topics_dockwidget_content_frame_layout            ->addWidget(topic_widget_);
-  ui_.processes_dockwidget_content_frame_layout         ->addWidget(process_widget_);
-  ui_.host_dockwidget_content_frame_layout              ->addWidget(host_widget_);
-  ui_.service_dockwidget_content_frame_layout           ->addWidget(service_widget_);
-  ui_.system_information_dockwidget_content_frame_layout->addWidget(syste_information_widget_);
+  ui_.logging_dockwidget_content_frame_layout            ->addWidget(log_widget_);
+  ui_.topics_dockwidget_content_frame_layout             ->addWidget(topic_widget_);
+  ui_.processes_dockwidget_content_frame_layout          ->addWidget(process_widget_);
+  ui_.host_dockwidget_content_frame_layout               ->addWidget(host_widget_);
+  ui_.service_dockwidget_content_frame_layout            ->addWidget(service_widget_);
+  ui_.raw_monitoring_data_dockwidget_content_frame_layout->addWidget(raw_monitoring_data_widget_);
+  ui_.system_information_dockwidget_content_frame_layout ->addWidget(syste_information_widget_);
 
   monitor_update_timer_ = new QTimer(this);
   connect(monitor_update_timer_, &QTimer::timeout, [this](){updateMonitor();});
@@ -222,7 +229,7 @@ Ecalmon::Ecalmon(QWidget *parent)
   // Parse Time
   connect(ui_.action_show_parsed_times, &QAction::toggled, this, &Ecalmon::setParseTimeEnabled);
 
-#ifdef ECAL_NPCAP_SUPPORT
+#ifdef ECAL_USE_NPCAP
   connect(ui_.action_npcap_status, &QAction::triggered, this,
       [this]()
       {
@@ -231,7 +238,7 @@ Ecalmon::Ecalmon(QWidget *parent)
       });
 #else
   ui_.action_npcap_status->setVisible(false);
-#endif // ECAL_NPCAP_SUPPORT
+#endif // ECAL_USE_NPCAP
 
   // Reset layout
   connect(ui_.action_reset_layout, &QAction::triggered, this, &Ecalmon::resetLayout);
@@ -365,7 +372,7 @@ void Ecalmon::updateMonitor()
 #ifndef NDEBUG
     qDebug().nospace() << "[" << metaObject()->className() << "Error getting Monitoring Information";
 #endif // NDEBUG
-    eCAL::Logging::Log(eCAL_Logging_eLogLevel::log_level_error, "Error getting eCAL Monitoring information");
+    eCAL::Logging::Log(eCAL::Logging::eLogLevel::log_level_error, "Error getting eCAL Monitoring information");
   }
 }
 
@@ -695,7 +702,18 @@ void Ecalmon::resetLayout()
   setTheme(Theme::Dark);
 
   // Back when we saved the initial window geometry, the window-manager might not have positioned the window on the screen, yet
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
   int screen_number = QApplication::desktop()->screenNumber(this);
+#else
+  int screen_number = 0;
+  QScreen* current_screen = this->screen();
+  if (current_screen != nullptr)
+  {
+    screen_number = QApplication::screens().indexOf(current_screen);
+    if (screen_number < 0)
+      screen_number = 0;
+  }
+#endif // QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
 
   restoreGeometry(initial_geometry_);
   restoreState(initial_state_);

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,6 @@ message LayerParShm
   repeated string  memory_file_list   =   1;    // list of memory file names
 }
 
-message LayerParInproc
-{
-}
-
 message LayerParTcp
 {
   int32            port               =   1;    // tcp writers port number
@@ -41,37 +37,38 @@ message LayerParTcp
 
 message ConnnectionPar                          // connection parameter for reader / writer
 {
+  // Reserved fields in enums are not supported in protobuf 3.0
+  // reserved 3;
+
   LayerParUdpMC    layer_par_udpmc    =   1;    // parameter for ecal udp multicast
   LayerParShm      layer_par_shm      =   2;    // parameter for ecal shared memory
-  LayerParInproc   layer_par_inproc   =   3;    // parameter for ecal inner process
+                                                // 3 = parameter for ecal inner process
   LayerParTcp      layer_par_tcp      =   4;    // parameter for ecal tcp
 }
 
-enum eTLayerType                                // transport layer
+enum eTransportLayerType                                // transport layer
 {
+  // Reserved fields in enums are not supported in protobuf 3.0
+  // reserved 2, 3, 42;
+
   tl_none                             =   0;    // undefined
   tl_ecal_udp_mc                      =   1;    // ecal udp multicast
                                                 // 2 = ecal udp unicast (not supported anymore)
                                                 // 3 = ecal udp metal (not supported anymore)
   tl_ecal_shm                         =   4;    // ecal shared memory
   tl_ecal_tcp                         =   5;    // ecal tcp
-  tl_inproc                           =  42;    // inproc (inner process)
+                                                // 42 = inproc (not supported anymore)
   tl_all                              = 255;    // all layer
 }
 
-message TLayer
+message TransportLayer
 {
-  eTLayerType      type               =   1;    // transport layer type
-  int32            version            =   2;    // transport layer version
-  bool             confirmed          =   3;    // transport layer used ?
+  // Reserved fields in enums are not supported in protobuf 3.0
+  // reserved 4;
 
-  // ----------------------------------------------------------------------
-  // REMOVE ME IN ECAL6
-  // ----------------------------------------------------------------------
-  bytes            par_shm            =   4;    // transport layer parameter (shm only, deprecated)
-  // ----------------------------------------------------------------------
-  // REMOVE ME IN ECAL6
-  // ----------------------------------------------------------------------
-
-  ConnnectionPar   par_layer          =   5;    // transport layer parameter
+  eTransportLayerType   type               =   1;    // transport layer type
+  int32                 version            =   2;    // transport layer version
+  bool                  enabled            =   6;    // transport layer enabled ?
+  bool                  active             =   3;    // transport layer in use ?
+  ConnnectionPar        par_layer          =   5;    // transport layer parameter
 }

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@
 typedef struct
 {
   PyObject_HEAD
-  eCAL::eh5::HDF5Meas *hdf5_meas;
+  eCAL::eh5::v2::HDF5Meas *hdf5_meas;
 } Meas;
 
 /****************************************/
@@ -52,7 +52,7 @@ static PyObject* Meas_New(PyTypeObject *type, PyObject* /*args*/, PyObject* /*kw
   self = (Meas *)type->tp_alloc(type, 0);
   if (self != NULL)
   {
-    self->hdf5_meas = new eCAL::eh5::HDF5Meas();
+    self->hdf5_meas = new eCAL::eh5::v2::HDF5Meas();
   }
 
   return (PyObject *)self;
@@ -107,11 +107,11 @@ static PyObject* Meas_Open(Meas *self, PyObject *args)
   switch (access)
   {
   case 0:
-    open_meas = self->hdf5_meas->Open(path, eCAL::eh5::eAccessType::RDONLY);
+    open_meas = self->hdf5_meas->Open(path, eCAL::eh5::v2::RDONLY);
     break;
 
   case 1:
-    open_meas = self->hdf5_meas->Open(path, eCAL::eh5::eAccessType::CREATE);
+    open_meas = self->hdf5_meas->Open(path, eCAL::eh5::v2::CREATE);
     break;
 
   default:
@@ -178,7 +178,7 @@ static PyObject* Meas_GetChannelNames(Meas *self, PyObject* /*args*/)
   for (const auto& channel : channel_names)
   {
     PyObject* ch = Py_BuildValue("s", channel.c_str());
-    PyList_Append(channels, ch);
+    PyList_Append(channels, ch); Py_DECREF(ch);
   }
 
   return channels;
@@ -279,7 +279,7 @@ static PyObject* Meas_GetEntriesInfo(Meas *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &channel_name))
     return nullptr;
 
-  eCAL::eh5::EntryInfoSet entries;
+  eCAL::experimental::measurement::base::EntryInfoSet entries;
   self->hdf5_meas->GetEntriesInfo(channel_name, entries);
   PyObject* entries_info = PyList_New(0);
 
@@ -327,7 +327,7 @@ static PyObject* Meas_GetEntriesInfoRange(Meas *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "sLL", &channel_name, &begin, &end))
     return nullptr;
 
-  eCAL::eh5::EntryInfoSet entries;
+  eCAL::experimental::measurement::base::EntryInfoSet entries;
   self->hdf5_meas->GetEntriesInfoRange(channel_name, begin, end, entries);
   PyObject* entries_info = PyList_New(0);
 

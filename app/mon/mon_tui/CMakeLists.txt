@@ -1,6 +1,6 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2025 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -108,26 +108,18 @@ target_include_directories(${PROJECT_NAME}
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 
 target_compile_definitions(${PROJECT_NAME}
-  PRIVATE $<$<BOOL:${MSVC}>:PCRE_STATIC;_UNICODE>)
-
-# Upgrade Visual studio toolset version if necessary. Minimum working version is v142
-# TODO: Remove this code block as soon as possible
-if (MSVC AND (MSVC_TOOLSET_VERSION LESS 142))
-  set_target_properties(${PROJECT_NAME} 
-    PROPERTIES
-      VS_PLATFORM_TOOLSET v142
+  PRIVATE 
+    $<$<BOOL:${MSVC}>:PCRE_STATIC;_UNICODE>
+    FTXUI_VERSION_MAJOR=${ftxui_VERSION_MAJOR}
   )
-  
-  list(APPEND CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS "C:/Windows/system32/vcruntime140_1.dll")
-  include(InstallRequiredSystemLibraries)
-endif()
 
 create_targets_protobuf()
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} PRIVATE
   protobuf::libprotobuf
   tclap::tclap
-  eCAL::core
+  eCAL::protobuf_core
+  eCAL::string_core
   eCAL::core_pb
   ftxui::screen
   ftxui::dom

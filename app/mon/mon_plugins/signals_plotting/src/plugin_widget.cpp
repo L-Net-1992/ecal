@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,8 +73,8 @@ PluginWidget::PluginWidget(const QString& topic_name, const QString& topic_type,
   ui_.publish_timestamp_warning_label->setVisible(false);
 
   // Add eCAL Callbacks
-  subscriber_.AddReceiveCallback(std::bind(&PluginWidget::onProtoMessageCallback, this, std::placeholders::_2, std::placeholders::_3));
-  subscriber_.AddErrorCallback(std::bind(&PluginWidget::onProtoErrorCallback, this, std::placeholders::_1));
+  subscriber_.SetReceiveCallback(std::bind(&PluginWidget::onProtoMessageCallback, this, std::placeholders::_2, std::placeholders::_3));
+  subscriber_.SetErrorCallback(std::bind(&PluginWidget::onProtoErrorCallback, this, std::placeholders::_1));
 
   // Button connections
   connect(ui_.expand_button, &QPushButton::clicked, [this]() { tree_view_->expandAll();   });
@@ -127,12 +127,12 @@ PluginWidget::~PluginWidget()
   qDebug().nospace() << "[" << PluginWidget::metaObject()->className() << "]: Deleting Widget for topic " << topic_name_;
 #endif // NDEBUG
 
-  subscriber_.RemReceiveCallback();
-  subscriber_.RemErrorCallback();
+  subscriber_.RemoveReceiveCallback();
+  subscriber_.RemoveErrorCallback();
 
   {
     std::lock_guard<std::mutex> lock(proto_message_mutex_);
-    delete last_proto_message_;
+    last_proto_message_.reset();
   }
 }
 
@@ -256,19 +256,15 @@ void PluginWidget::setVisibleSplitterHandle(bool state)
 ////////////////////////////////////////////////////////////////////////////////
 
 // eCAL Callback
-void PluginWidget::onProtoMessageCallback(const google::protobuf::Message& message, long long send_time_usecs)
+void PluginWidget::onProtoMessageCallback(const std::shared_ptr<google::protobuf::Message>& message, long long send_time_usecs)
 {
 
   {
     // Lock the mutex
     std::lock_guard<std::mutex> lock(proto_message_mutex_);
 
-    // Delete the old message
-    delete last_proto_message_;
-
     // Create a copy of the new message as member variable. We cannot use a reference here, as this may cause a deadlock with the GUI thread
-    last_proto_message_ = message.New();
-    last_proto_message_->CopyFrom(message);
+    last_proto_message_ = message;
 
     last_message_publish_timestamp_ = eCAL::Time::ecal_clock::time_point(std::chrono::duration_cast<eCAL::Time::ecal_clock::duration>(std::chrono::microseconds(send_time_usecs)));
 
@@ -327,7 +323,7 @@ void PluginWidget::updateTree()
 
 void PluginWidget::showErrorMessage()
 {
-    eCAL::Logging::Log(eCAL_Logging_eLogLevel::log_level_error, "Error when receiving data on topic \"" + topic_name_.toStdString() + "\": " + last_error_string_.toStdString());
+    eCAL::Logging::Log(eCAL::Logging::eLogLevel::log_level_error, "Error when receiving data on topic \"" + topic_name_.toStdString() + "\": " + last_error_string_.toStdString());
 
     tree_model_->removeAllChildren();
     tree_view_->setVisible(false);

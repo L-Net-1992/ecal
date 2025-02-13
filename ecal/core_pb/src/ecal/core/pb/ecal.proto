@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,9 @@ package eCAL.pb;
 
 message Content                                // topic content
 {
+  // Reserved fields in enums are not supported in protobuf 3.0
+  // reserved 5;
+
   int64        id                    =  1;     // sample id
   int64        clock                 =  2;     // internal used clock
   int64        time                  =  3;     // time the content was updated
@@ -38,13 +41,22 @@ message Content                                // topic content
 
 enum eCmdType                                  // command type
 {
-  bct_none           = 0;                      // undefined command
-  bct_set_sample     = 1;                      // set sample content
-  bct_reg_publisher  = 2;                      // register publisher
-  bct_reg_subscriber = 3;                      // register subscriber
-  bct_reg_process    = 4;                      // register process
-  bct_reg_service    = 5;                      // register service
-  bct_reg_client     = 6;                      // register client
+  // Reserved fields in enums are not supported in protobuf 3.0
+  // reserved 7 to 11;
+
+  bct_none             =  0;                   // undefined command
+  bct_set_sample       =  1;                   // set sample content
+  bct_reg_publisher    =  2;                   // register publisher
+  bct_reg_subscriber   =  3;                   // register subscriber
+  bct_reg_process      =  4;                   // register process
+  bct_reg_service      =  5;                   // register service
+  bct_reg_client       =  6;                   // register client
+
+  bct_unreg_publisher  = 12;                   // unregister publisher
+  bct_unreg_subscriber = 13;                   // unregister subscriber
+  bct_unreg_process    = 14;                   // unregister process
+  bct_unreg_service    = 15;                   // unregister service
+  bct_unreg_client     = 16;                   // unregister client
 }
 
 message Sample                                 // a sample is a topic, it's descriptions and it's content
@@ -61,5 +73,5 @@ message Sample                                 // a sample is a topic, it's desc
 
 message SampleList
 {
-  repeated Sample samples = 1;
+  repeated Sample samples            =  1;     // list of Samples used currently by SHM registration
 }

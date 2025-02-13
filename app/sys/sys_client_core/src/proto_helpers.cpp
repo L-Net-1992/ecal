@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ namespace eCAL
         runner.default_task_dir = runner_pb.default_task_dir();
       }
 
-      void FromProtobuf(const eCAL::pb::sys_client::WindowMode&          window_mode_pb,       eCAL_Process_eStartMode&           window_mode)
+      void FromProtobuf(const eCAL::pb::sys_client::WindowMode&          window_mode_pb,       eCAL::Process::eStartMode&           window_mode)
       {
         window_mode = FromProtobuf(window_mode_pb);
       }
@@ -71,7 +71,7 @@ namespace eCAL
 
       void FromProtobuf(const eCAL::pb::sys_client::StopTaskParameters&  stop_task_param_pb,   StopTaskParameters&                stop_task_param)
       {
-        stop_task_param.pid           = stop_task_param_pb.pid();
+        stop_task_param.process_id    = stop_task_param_pb.process_id();
         stop_task_param.task          = FromProtobuf(stop_task_param_pb.task());
         stop_task_param.ecal_shutdown = stop_task_param_pb.ecal_shutdown();
       }
@@ -97,21 +97,21 @@ namespace eCAL
         }
       }
 
-      void FromProtobuf(const eCAL::pb::sys_client::PidList&             pid_list_pb,          std::vector<int32_t>&              pid_list)
+      void FromProtobuf(const eCAL::pb::sys_client::ProcessIdList&             pid_list_pb,          std::vector<int32_t>&              pid_list)
       {
         pid_list.clear();
-        pid_list.reserve(pid_list_pb.pids_size());
-        for (const int32_t pid : pid_list_pb.pids())
+        pid_list.reserve(pid_list_pb.process_ids_size());
+        for (const int32_t process_id : pid_list_pb.process_ids())
         {
-          pid_list.push_back(pid);
+          pid_list.push_back(process_id);
         }
       }
 
       void FromProtobuf(const eCAL::pb::sys_client::MatchTaskResponse&   map_task_response_pb, std::vector<std::vector<int32_t>>& map_task_response)
       {
         map_task_response.clear();
-        map_task_response.reserve(map_task_response_pb.pid_lists_size());
-        for (const auto& pid_list_pb : map_task_response_pb.pid_lists())
+        map_task_response.reserve(map_task_response_pb.process_id_lists_size());
+        for (const auto& pid_list_pb : map_task_response_pb.process_id_lists())
         {
           map_task_response.push_back(FromProtobuf(pid_list_pb));
         }
@@ -132,18 +132,18 @@ namespace eCAL
         return runner;
       }
 
-      eCAL_Process_eStartMode           FromProtobuf(const eCAL::pb::sys_client::WindowMode&          window_mode_pb)
+      eCAL::Process::eStartMode           FromProtobuf(const eCAL::pb::sys_client::WindowMode&          window_mode_pb)
       {
         switch (window_mode_pb)
         {
         case eCAL::pb::sys_client::WindowMode::hidden:
-          return eCAL_Process_eStartMode::proc_smode_hidden;
+          return eCAL::Process::eStartMode::hidden;
         case eCAL::pb::sys_client::WindowMode::minimized:
-          return eCAL_Process_eStartMode::proc_smode_minimized;
+          return eCAL::Process::eStartMode::minimized;
         case eCAL::pb::sys_client::WindowMode::maximized:
-          return eCAL_Process_eStartMode::proc_smode_maximized;
+          return eCAL::Process::eStartMode::maximized;
         default:
-          return eCAL_Process_eStartMode::proc_smode_normal;
+          return eCAL::Process::eStartMode::normal;
         }
       }
 
@@ -182,7 +182,7 @@ namespace eCAL
         return output;
       }
 
-      std::vector<int32_t>              FromProtobuf(const eCAL::pb::sys_client::PidList&             pid_list_pb)
+      std::vector<int32_t>              FromProtobuf(const eCAL::pb::sys_client::ProcessIdList&             pid_list_pb)
       {
         std::vector<int32_t> output;
         FromProtobuf(pid_list_pb, output);
@@ -216,7 +216,7 @@ namespace eCAL
         runner_pb.set_default_task_dir(runner.default_task_dir);
       }
 
-      void ToProtobuf(eCAL::pb::sys_client::WindowMode&          window_mode_pb,       const eCAL_Process_eStartMode           window_mode)
+      void ToProtobuf(eCAL::pb::sys_client::WindowMode&          window_mode_pb,       const eCAL::Process::eStartMode           window_mode)
       {
         window_mode_pb = ToProtobuf(window_mode);
       }
@@ -239,7 +239,7 @@ namespace eCAL
 
       void ToProtobuf(eCAL::pb::sys_client::StopTaskParameters&  stop_task_param_pb,   const StopTaskParameters&               stop_task_param)
       {
-        stop_task_param_pb.set_pid          (stop_task_param.pid);
+        stop_task_param_pb.set_process_id   (stop_task_param.process_id);
         ToProtobuf                          (*stop_task_param_pb.mutable_task(), stop_task_param.task);
         stop_task_param_pb.set_ecal_shutdown(stop_task_param.ecal_shutdown);
       }
@@ -263,23 +263,23 @@ namespace eCAL
         }
       }
 
-      void ToProtobuf(eCAL::pb::sys_client::PidList&             pid_list_pb,          const std::vector<int32_t>&              pid_list)
+      void ToProtobuf(eCAL::pb::sys_client::ProcessIdList&             pid_list_pb,          const std::vector<int32_t>&              pid_list)
       {
-        pid_list_pb.clear_pids();
-        pid_list_pb.mutable_pids()->Reserve(static_cast<int>(pid_list.size()));
-        for (const int32_t pid : pid_list)
+        pid_list_pb.clear_process_ids();
+        pid_list_pb.mutable_process_ids()->Reserve(static_cast<int>(pid_list.size()));
+        for (const int32_t process_id : pid_list)
         {
-          pid_list_pb.add_pids(pid);
+          pid_list_pb.add_process_ids(process_id);
         }
       }
 
       void ToProtobuf(eCAL::pb::sys_client::MatchTaskResponse&   map_task_response_pb, const std::vector<std::vector<int32_t>>& map_task_response)
       {
-        map_task_response_pb.clear_pid_lists();
-        map_task_response_pb.mutable_pid_lists()->Reserve(static_cast<int>(map_task_response.size()));
+        map_task_response_pb.clear_process_id_lists();
+        map_task_response_pb.mutable_process_id_lists()->Reserve(static_cast<int>(map_task_response.size()));
         for (const std::vector<int32_t>& pid_list : map_task_response)
         {
-          ToProtobuf(*map_task_response_pb.add_pid_lists(), pid_list);
+          ToProtobuf(*map_task_response_pb.add_process_id_lists(), pid_list);
         }
       }
 
@@ -298,15 +298,15 @@ namespace eCAL
         return output;
       }
 
-      eCAL::pb::sys_client::WindowMode    ToProtobuf(const eCAL_Process_eStartMode                window_mode)
+      eCAL::pb::sys_client::WindowMode    ToProtobuf(const eCAL::Process::eStartMode                window_mode)
       {
         switch (window_mode)
         {
-        case eCAL_Process_eStartMode::proc_smode_hidden:
+        case eCAL::Process::eStartMode::hidden:
           return eCAL::pb::sys_client::WindowMode::hidden;
-        case eCAL_Process_eStartMode::proc_smode_minimized:
+        case eCAL::Process::eStartMode::minimized:
           return eCAL::pb::sys_client::WindowMode::minimized;
-        case eCAL_Process_eStartMode::proc_smode_maximized:
+        case eCAL::Process::eStartMode::maximized:
           return eCAL::pb::sys_client::WindowMode::maximized;
         default:
           return eCAL::pb::sys_client::WindowMode::normal;
@@ -348,9 +348,9 @@ namespace eCAL
         return output_pb;
       }
 
-      eCAL::pb::sys_client::PidList             ToProtobuf(const std::vector<int32_t>&                  pid_list)
+      eCAL::pb::sys_client::ProcessIdList       ToProtobuf(const std::vector<int32_t>&                  pid_list)
       {
-        eCAL::pb::sys_client::PidList output_pb;
+        eCAL::pb::sys_client::ProcessIdList output_pb;
         ToProtobuf(output_pb, pid_list);
         return output_pb;
       }

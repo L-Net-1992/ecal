@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,15 @@
  * @brief  eCAL publisher gateway class
 **/
 
-#include <ecal/ecal.h>
-
-#include "ecal_def.h"
-#include "ecal_config_reader_hlp.h"
 #include "ecal_pubgate.h"
-#include "ecal_descgate.h"
+#include "ecal_globals.h"
 
-#include <iterator>
 #include <atomic>
+#include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include <string>
+#include <utility>
 
 namespace eCAL
 {
@@ -37,71 +37,54 @@ namespace eCAL
   // CPubGate
   //////////////////////////////////////////////////////////////////
   std::atomic<bool> CPubGate::m_created;
-  CPubGate::CPubGate() :
-    m_share_type(true),
-    m_share_desc(true)
-  {
-  };
+  CPubGate::CPubGate() = default;
 
   CPubGate::~CPubGate()
   {
-    Destroy();
+    Stop();
   }
 
-  void CPubGate::Create()
+  void CPubGate::Start()
   {
     if(m_created) return;
-
     m_created = true;
   }
 
-  void CPubGate::Destroy()
+  void CPubGate::Stop()
   {
     if(!m_created) return;
 
-    // destroy all remaining publisher
-    std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    for (auto iter = m_topic_name_datawriter_map.begin(); iter != m_topic_name_datawriter_map.end(); ++iter)
-    {
-      iter->second->Destroy();
-    }
+    // stop & destroy all remaining publisher
+    const std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    m_topic_name_publisher_map.clear();
 
     m_created = false;
   }
 
-  void CPubGate::ShareType(bool state_)
-  {
-    m_share_type = state_;
-  }
-
-  void CPubGate::ShareDescription(bool state_)
-  {
-    m_share_desc = state_;
-  }
-
-  bool CPubGate::Register(const std::string& topic_name_, CDataWriter* datawriter_)
+  bool CPubGate::Register(const std::string& topic_name_, const std::shared_ptr<CPublisherImpl>& publisher_)
   {
     if(!m_created) return(false);
 
     // register writer and multicast group
-    std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    m_topic_name_datawriter_map.emplace(std::pair<std::string, CDataWriter*>(topic_name_, datawriter_));
+    const std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    m_topic_name_publisher_map.emplace(std::pair<std::string, std::shared_ptr<CPublisherImpl>>(topic_name_, publisher_));
 
     return(true);
   }
 
-  bool CPubGate::Unregister(const std::string& topic_name_, CDataWriter* datawriter_)
+  bool CPubGate::Unregister(const std::string& topic_name_, const std::shared_ptr<CPublisherImpl>& publisher_)
   {
     if(!m_created) return(false);
     bool ret_state = false;
 
-    std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    auto res = m_topic_name_datawriter_map.equal_range(topic_name_);
-    for(TopicNameDataWriterMapT::iterator iter = res.first; iter != res.second; ++iter)
+    const std::unique_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    auto res = m_topic_name_publisher_map.equal_range(topic_name_);
+    for(auto iter = res.first; iter != res.second; ++iter)
     {
-      if(iter->second == datawriter_)
+      if(iter->second == publisher_)
       {
-        m_topic_name_datawriter_map.erase(iter);
+        m_topic_name_publisher_map.erase(iter);
+        ret_state = true;
         break;
       }
     }
@@ -109,97 +92,95 @@ namespace eCAL
     return(ret_state);
   }
 
-  void CPubGate::ApplyLocSubRegistration(const eCAL::pb::Sample& ecal_sample_)
+  void CPubGate::ApplySubscriberRegistration(const Registration::Sample& ecal_sample_)
   {
     if(!m_created) return;
 
-    const auto& ecal_sample_topic = ecal_sample_.topic();
-    const std::string& topic_name = ecal_sample_topic.tname();
-    const std::string& topic_id   = ecal_sample_topic.tid();
-    const std::string& topic_type = ecal_sample_topic.ttype();
-    const std::string& topic_desc = ecal_sample_topic.tdesc();
-    const std::string  process_id = std::to_string(ecal_sample_topic.pid());
+    const auto&        ecal_topic = ecal_sample_.topic;
+    const std::string& topic_name = ecal_topic.topic_name;
+
+    // check topic name
+    if (topic_name.empty()) return;
+
+    // TODO: Substitute ProducerInfo type
+    const auto& subscription_info = ecal_sample_.identifier;
+    const SDataTypeInformation& topic_information = ecal_topic.datatype_information;
+
+    CPublisherImpl::SLayerStates layer_states;
+    for (const auto& layer : ecal_topic.transport_layer)
+    {
+      // transport layer versions 0 and 1 did not support dynamic layer enable feature
+      // so we set assume layer is enabled if we receive a registration in this case
+      if (layer.enabled || (layer.version < 2))
+      {
+        switch (layer.type)
+        {
+        case tl_ecal_udp:
+          layer_states.udp.read_enabled = true;
+          break;
+        case tl_ecal_shm:
+          layer_states.shm.read_enabled = true;
+          break;
+        case tl_ecal_tcp:
+          layer_states.tcp.read_enabled = true;
+          break;
+        default:
+          break;
+        }
+      }
+    }
 
     std::string reader_par;
-    for (const auto& layer : ecal_sample_topic.tlayer())
+#if 0
+    for (const auto& layer : ecal_sample.transport_layer())
     {
       // layer parameter as protobuf message
       // this parameter is not used at all currently
-      // for local subscriber registrations
+      // for subscriber registrations
       reader_par = layer.par_layer().SerializeAsString();
     }
+#endif
 
-    // store description
-    ApplyTopicToDescGate(topic_name, topic_type, topic_desc);
-
-    // register local subscriber
-    std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    auto res = m_topic_name_datawriter_map.equal_range(topic_name);
-    for(TopicNameDataWriterMapT::const_iterator iter = res.first; iter != res.second; ++iter)
+    // register subscriber
+    const std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    auto res = m_topic_name_publisher_map.equal_range(topic_name);
+    for(TopicNamePublisherMapT::const_iterator iter = res.first; iter != res.second; ++iter)
     {
-      iter->second->ApplyLocSubscription(process_id, topic_id, topic_type, topic_desc, reader_par);
+      iter->second->ApplySubscriberRegistration(subscription_info, topic_information, layer_states, reader_par);
     }
   }
 
-  void CPubGate::ApplyExtSubRegistration(const eCAL::pb::Sample& ecal_sample_)
-  {
-    if(!m_created) return;
-
-    const auto& ecal_sample_topic = ecal_sample_.topic();
-    const std::string& host_name  = ecal_sample_topic.hname();
-    const std::string& topic_name = ecal_sample_topic.tname();
-    const std::string& topic_id   = ecal_sample_topic.tid();
-    const std::string& topic_type = ecal_sample_topic.ttype();
-    const std::string& topic_desc = ecal_sample_topic.tdesc();
-    const std::string  process_id = std::to_string(ecal_sample_topic.pid());
-
-    std::string reader_par;
-    for (const auto& layer : ecal_sample_topic.tlayer())
-    {
-      // layer parameter as protobuf message
-      // this parameter is not used at all currently
-      // for external subscriber registrations
-      reader_par = layer.par_layer().SerializeAsString();
-    }
-
-    // store description
-    ApplyTopicToDescGate(topic_name, topic_type, topic_desc);
-
-    // register external subscriber
-    std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    auto res = m_topic_name_datawriter_map.equal_range(topic_name);
-    for(TopicNameDataWriterMapT::const_iterator iter = res.first; iter != res.second; ++iter)
-    {
-      iter->second->ApplyExtSubscription(host_name, process_id, topic_id, topic_type, topic_desc, reader_par);
-    }
-  }
-
-  void CPubGate::RefreshRegistrations()
+  void CPubGate::ApplySubscriberUnregistration(const Registration::Sample& ecal_sample_)
   {
     if (!m_created) return;
 
-    // refresh publisher registrations
-    std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_datawriter_sync);
-    for (auto iter : m_topic_name_datawriter_map)
+    const auto& ecal_topic = ecal_sample_.topic;
+    const std::string& topic_name = ecal_topic.topic_name;
+
+    // check topic name
+    if (topic_name.empty()) return;
+
+    const auto& subscription_info = ecal_sample_.identifier;
+    const SDataTypeInformation& topic_information = ecal_topic.datatype_information;
+
+    // unregister subscriber
+    const std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    auto res = m_topic_name_publisher_map.equal_range(topic_name);
+    for (TopicNamePublisherMapT::const_iterator iter = res.first; iter != res.second; ++iter)
     {
-      iter.second->RefreshRegistration();
+      iter->second->ApplySubscriberUnregistration(subscription_info, topic_information);
     }
   }
 
-  bool CPubGate::ApplyTopicToDescGate(const std::string& topic_name_, const std::string& topic_type_, const std::string& topic_desc_)
+  void CPubGate::GetRegistrations(Registration::SampleList& reg_sample_list_)
   {
-    if (g_descgate())
-    {
-      // Calculate the quality of the current info
-      ::eCAL::CDescGate::QualityFlags quality = ::eCAL::CDescGate::QualityFlags::NO_QUALITY;
-      if (!topic_type_.empty())
-        quality |= ::eCAL::CDescGate::QualityFlags::TYPE_AVAILABLE;
-      if (!topic_desc_.empty())
-        quality |= ::eCAL::CDescGate::QualityFlags::DESCRIPTION_AVAILABLE;
-      quality |= ::eCAL::CDescGate::QualityFlags::INFO_COMES_FROM_CORRECT_ENTITY;
+    if (!m_created) return;
 
-      return g_descgate()->ApplyTopicDescription(topic_name_, topic_type_, topic_desc_, quality);
+    // read reader registrations
+    const std::shared_lock<std::shared_timed_mutex> lock(m_topic_name_publisher_mutex);
+    for (const auto& iter : m_topic_name_publisher_map)
+    {
+      iter.second->GetRegistration(reg_sample_list_.push_back());
     }
-    return false;
   }
-};
+}

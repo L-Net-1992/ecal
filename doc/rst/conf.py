@@ -8,6 +8,7 @@
 
 import os
 import sys
+import semantic_version
 
 # -- Variable setup ----------------------------------------------------------
 
@@ -38,6 +39,24 @@ if is_cmake_build:
 
 sys.path.insert(0, sphinx_custom_extension_dir)
 
+# -- Project information -----------------------------------------------------
+
+project = u'Eclipse eCAL™'
+copyright = u'2023, Continental'
+#author = u'Continental'
+
+# The short X.Y version
+# version = u''
+# The full version, including alpha/beta/rc tags
+
+# Get release version from ECAL_DOC_VERSION environment variable
+ecal_doc_version = os.getenv("ECAL_DOC_VERSION")
+
+if not ecal_doc_version:
+    ecal_doc_version = ""
+
+release = ecal_doc_version # The release variable is important for the version-banner
+
 # -- Generate ecalicons include file-------------------------------------------
 
 import generate_ecalicons
@@ -53,34 +72,27 @@ qresource_list = [
 generate_ecalicons.generate_ecalicons(qresource_list, os.path.join(rst_source_dir, r"_include_ecalicons.txt"))
 
 # -- Generate download archive and tables for the homepage --------------------
-import generate_download_tables
+import generate_release_documentation
 
-download_tables_main_page_dir = os.path.join(rst_source_dir, r"_download_main_page")
-download_archive_dir          = os.path.join(rst_source_dir, r"_download_archive")
-ppa_tabs_file                 = os.path.join(rst_source_dir, r"getting_started/_ppa_tabs.rst.txt")
+ppa_instructions_rst_file = os.path.join(rst_source_dir, r"getting_started/_ppa_instructions.rst.txt")
 
-if not os.path.exists(download_tables_main_page_dir) or not os.path.exists(download_archive_dir):
-    # Only generate download tables, if the directories do not exist.
-    # Otherwise we may run out of API calls very quickly.
-    gh_api_key = os.getenv("ECAL_GH_API_KEY")
-    if gh_api_key:
-        os.makedirs(download_tables_main_page_dir)
-        os.makedirs(download_archive_dir)
-        generate_download_tables.generate_download_tables(gh_api_key, download_tables_main_page_dir, download_archive_dir, ppa_tabs_file)
-    else:  
-        print("WARNING: Environment variable ECAL_GH_API_KEY not set. Skipping generating download tables.")
-
-# -- Project information -----------------------------------------------------
-
-project = u'Eclipse eCAL™'
-copyright = u'2023, Continental'
-#author = u'Continental'
-
-# The short X.Y version
-version = u''
-# The full version, including alpha/beta/rc tags
-release = u''
-
+gh_api_key = os.getenv("ECAL_GH_API_KEY")
+if not gh_api_key:
+    print("WARNING: Environment variable ECAL_GH_API_KEY not set. Skipping generating PPA instructions.")
+elif not ecal_doc_version:
+    print("WARNING: Environment variable ECAL_DOC_VERSION not set. Skipping generating PPA instructions.")
+else:
+    # Sanitize the version string by removing leading 'v' and '.' characters
+    ecal_doc_version_sanitized = ecal_doc_version
+    if ecal_doc_version_sanitized.startswith('v'):
+        ecal_doc_version_sanitized = ecal_doc_version_sanitized[1:]
+    if ecal_doc_version_sanitized.startswith('.'):
+        ecal_doc_version_sanitized = ecal_doc_version_sanitized[1:]
+    # Ensure the version string has a patch version
+    if len(ecal_doc_version_sanitized.split('.')) == 2:
+        ecal_doc_version_sanitized += '.0'
+    generate_release_documentation.generate_ppa_instructions(gh_api_key, semantic_version.Version(ecal_doc_version_sanitized), ppa_instructions_rst_file)
+  
 
 # -- General configuration ---------------------------------------------------
 
@@ -188,12 +200,9 @@ html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
 
 html_css_files = [
-    'css/pydata-ecal.css',
-    'css/pydata-ecal-addon.css',
-    'css/book-ecal-addon.css',
-    'css/bignums.css',
-    'css/tabs.css',
-    'css/pygments-ecal-addon.css',
+    'css/bignums.css',                              # Enable the bignum feature from the sphinx-typo3-theme
+    'css/sphinx-book-theme-1.1.2-ecaladdon.css',    # Change colors of the sphinx-book-theme
+    'css/tabs-3.4.5-ecaladdon.css',                 # Change colors of the sphinx-tabs
 ]
 
 html_title = "Eclipse eCAL™"
@@ -211,24 +220,25 @@ html_theme_options = {
     "repository_branch": "master",
     "path_to_docs": "doc/rst/",
     "extra_navbar": "", # => Remove the default text
-    "extra_footer":     '<h5>Eclipse Foundation</h5>'
-                        '<ul>'
-                            '<li>'
-                                '<p><a href="http://www.eclipse.org">Website</a></p>'
-                            '</li>'
-                            '<li>'
-                                '<p><a href="http://www.eclipse.org/legal/privacy.php">Privacy policy</a></p>'
-                            '</li>'
-                            '<li>'
-                                '<p><a href="http://www.eclipse.org/legal/termsofuse.php">Terms of Use</a></p>'
-                            '</li>'
-                            '<li>'
-                                '<p><a href="http://www.eclipse.org/legal/copyright.php">Copyright agent</a></p>'
-                            '</li>'
-                            '<li>'
-                                '<p><a href="http://www.eclipse.org/legal">Legal</a></p>'
-                            '</li>'
-                        '</ul>',
+    "footer_start": ["footer.html"],
+    "extra_footer": '',
+
+    # Add version switcher to choose between different versions of the documentation
+    "switcher": {
+        "json_url": "https://eclipse-ecal.github.io/ecal/switcher.json",
+        "version_match": ecal_doc_version,
+    },
+
+     # Set to check_switcher false to allow offline builds
+    "check_switcher": False,
+
+    # Enable a banner telling the user that they look at an outdated version of the documentation
+    "show_version_warning_banner": True,
+}
+
+html_sidebars = {
+    # Add the version switchter to the sidebar
+    "**": ["navbar-logo", "icon-links", "version-switcher", "search-field", "sbt-sidebar-nav.html"]
 }
 
 # -- Options for HTMLHelp output ---------------------------------------------

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,13 @@
 */
 
 #pragma once
-#include <iostream>
 #include <algorithm>
-#include <regex>
 #include <cctype>
-#include <array>
+#include <iostream>
+#include <memory>
+#include <list>
+#include <regex>
+#include <utility>
 
 #include <ecal_utils/filesystem.h>
 #include <ecalhdf5/eh5_meas.h>
@@ -52,11 +54,11 @@ public:
 
 private:
   bool                                 isEcalMeasFile(const std::string& path);
-  bool                                 isProtoChannel(const std::string& channel_type);
-  std::unique_ptr<eCAL::eh5::HDF5Meas> _reader;
-  eCALMeasCutterUtils::ChannelData     _current_opened_channel_data;
-  std::string                          _loaded_path;
-  eCALMeasCutterUtils::ChannelNameSet  _channel_names;
+  bool                                 isProtoChannel(const eCAL::experimental::measurement::base::DataTypeInformation& channel_info);
+  std::unique_ptr<eCAL::eh5::v2::HDF5Meas>              _reader;
+  eCALMeasCutterUtils::ChannelData                      _current_opened_channel_data;
+  std::string                                           _loaded_path;
+  eCALMeasCutterUtils::ChannelNameSet                   _channel_names;
 };
 
 class ImporterException : public std::exception

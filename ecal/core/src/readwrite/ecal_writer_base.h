@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@
 
 #pragma once
 
-#include <ecal/ecal_qos.h>
+#include <ecal/pubsub/payload_writer.h>
 
 #include "ecal_writer_data.h"
 #include "ecal_writer_info.h"
+
+#include "serialization/ecal_struct_sample_registration.h"
 
 #include <atomic>
 #include <string>
@@ -36,34 +38,17 @@ namespace eCAL
   class CDataWriterBase
   {
   public:
-    CDataWriterBase() : m_created(false) {};
-    virtual ~CDataWriterBase() {};
+    virtual ~CDataWriterBase() = default;
 
     virtual SWriterInfo GetInfo() = 0;
 
-    virtual bool Create(const std::string& host_name_, const std::string& topic_name_, const std::string & topic_id_) = 0;
-    virtual bool Destroy() = 0;
+    virtual void ApplySubscription(const std::string& /*host_name_*/, const int32_t /*process_id_*/, const EntityIdT& /*topic_id_*/, const std::string& /*conn_par_*/) {};
+    virtual void RemoveSubscription(const std::string& /*host_name_*/, const int32_t /*process_id_*/, const EntityIdT& /*topic_id_*/) {};
 
-    virtual bool SetQOS(const QOS::SWriterQOS& qos_) { m_qos = qos_; return true; };
-    QOS::SWriterQOS GetQOS() { return(m_qos); };
+    virtual Registration::ConnectionPar GetConnectionParameter() { return {}; };
 
-    virtual bool AddLocConnection(const std::string& /*process_id_*/, const std::string& /*conn_par_*/) { return false; };
-    virtual bool RemLocConnection(const std::string& /*process_id_*/) { return false; };
-
-    virtual bool AddExtConnection(const std::string& /*host_name_*/, const std::string& /*process_id_*/, const std::string& /*conn_par_*/) { return false; };
-    virtual bool RemExtConnection(const std::string& /*host_name_*/, const std::string& /*process_id_*/) { return false; };
-
-    virtual std::string GetConnectionParameter() { return ""; };
-
-    virtual bool PrepareWrite(const SWriterData& /*data_*/) { return false; };
-    virtual bool Write(const SWriterData& data_) = 0;
-
-  protected:
-    std::string        m_host_name;
-    std::string        m_topic_name;
-    std::string        m_topic_id;
-    QOS::SWriterQOS    m_qos;
-
-    std::atomic<bool>  m_created;
+    virtual bool PrepareWrite(const SWriterAttr& /*attr_*/) { return false; };
+    virtual bool Write(CPayloadWriter& /*payload_*/, const SWriterAttr& /*attr_*/) { return false; };
+    virtual bool Write(const void* /*buf_*/, const SWriterAttr& /*attr_*/) { return false; };
   };
 }

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #pragma once
 
 #include "CustomQt/QAbstractTreeItem.h"
+#include <QFont>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -37,34 +38,37 @@ public:
 
   enum class Columns : int
   {
-    RCLOCK,
-    HNAME,
-    PID,
-    PNAME,
-    UNAME,
-    TID,
-    TNAME,
+    REGISTRATION_CLOCK,
+    HOST_NAME,
+    SHM_TRANSPORT_DOMAIN,
+    PROCESS_ID,
+    PROCESS_NAME,
+    UNIT_NAME,
+    TOPIC_ID,
+    TOPIC_NAME,
     DIRECTION,
+    TENCODING,
     TTYPE,
     TDESC,
-    TQOS,
-    TLAYER,
-    TSIZE,
-    CONNECTIONS_LOC,
-    CONNECTIONS_EXT,
+    TRANSPORT_LAYER,
+    TOPIC_SIZE,
+    CONNECTIONS_LOCAL,
+    CONNECTIONS_EXTERNAL,
     MESSAGE_DROPS,
-    DCLOCK,
+    DATA_CLOCK,
     DFREQ,
   };
 
-  TopicTreeItem();
+  TopicTreeItem() = default;
   TopicTreeItem(const eCAL::pb::Topic& topic);
 
-  ~TopicTreeItem();
+  ~TopicTreeItem() override = default;
 
   QVariant data(int column, Qt::ItemDataRole role = Qt::ItemDataRole::DisplayRole) const;
 
   QVariant data(Columns column, Qt::ItemDataRole role = Qt::ItemDataRole::DisplayRole) const;
+
+  bool setFont(const QFont& font);
 
   int type() const;
 
@@ -76,7 +80,6 @@ public:
 
 private:
   eCAL::pb::Topic topic_;
-
+  QFont itemfont;
   static QString toFrequencyString(long long freq);
 };
-

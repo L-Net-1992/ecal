@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,44 +36,44 @@ namespace eCAL
         switch (task_state_pb.severity())
         {
         case eCAL::pb::sys::eProcessSeverity::proc_sev_unknown:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_unknown;
+          task_state.severity = eCAL::Process::eSeverity::unknown;
           break;
         case eCAL::pb::sys::eProcessSeverity::proc_sev_healthy:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_healthy;
+          task_state.severity = eCAL::Process::eSeverity::healthy;
           break;
         case eCAL::pb::sys::eProcessSeverity::proc_sev_warning:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_warning;
+          task_state.severity = eCAL::Process::eSeverity::warning;
           break;
         case eCAL::pb::sys::eProcessSeverity::proc_sev_critical:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_critical;
+          task_state.severity = eCAL::Process::eSeverity::critical;
           break;
         case eCAL::pb::sys::eProcessSeverity::proc_sev_failed:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_failed;
+          task_state.severity = eCAL::Process::eSeverity::failed;
           break;
         default:
-          task_state.severity = eCAL_Process_eSeverity::proc_sev_unknown;
+          task_state.severity = eCAL::Process::eSeverity::unknown;
           break;
         }
 
         switch (task_state_pb.severity_level())
         {
         case eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level1:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level1;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level1;
           break;
         case eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level2:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level2;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level2;
           break;
         case eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level3:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level3;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level3;
           break;
         case eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level4:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level4;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level4;
           break;
         case eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level5:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level5;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level5;
           break;
         default:
-          task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level1;
+          task_state.severity_level = eCAL::Process::eSeverityLevel::level1;
           break;
         }
 
@@ -87,10 +87,10 @@ namespace eCAL
         task->SetTarget(task_pb.target_host());
         task->SetMonitoringTaskState(FromProtobuf(task_pb.state()));
 
-        std::vector<int32_t> pids;
-        for(int32_t pid : task_pb.pids())
-          pids.push_back(pid);
-        task->SetPids(pids);
+        std::vector<int32_t> process_ids;
+        for(int32_t process_id : task_pb.process_ids())
+          process_ids.push_back(process_id);
+        task->SetPids(process_ids);
 
         task->SetLaunchOrder(task_pb.launch_order());
         task->SetAlgoPath(task_pb.path());
@@ -102,7 +102,7 @@ namespace eCAL
         task->SetMonitoringTaskState(FromProtobuf(task_pb.state()));
 
         auto restart_at_severity = FromProtobuf(task_pb.restart_by_severity());
-        if (restart_at_severity.severity != eCAL_Process_eSeverity::proc_sev_unknown)
+        if (restart_at_severity.severity != eCAL::Process::eSeverity::unknown)
         {
           task->SetRestartBySeverityEnabled(true);
           task->SetRestartAtSeverity(restart_at_severity);
@@ -186,19 +186,19 @@ namespace eCAL
       {
         switch (task_state.severity)
         {
-        case eCAL_Process_eSeverity::proc_sev_unknown:
+        case eCAL::Process::eSeverity::unknown:
           task_state_pb.set_severity(eCAL::pb::sys::eProcessSeverity::proc_sev_unknown);
           break;
-        case eCAL_Process_eSeverity::proc_sev_healthy:
+        case eCAL::Process::eSeverity::healthy:
           task_state_pb.set_severity(eCAL::pb::sys::eProcessSeverity::proc_sev_healthy);
           break;
-        case eCAL_Process_eSeverity::proc_sev_warning:
+        case eCAL::Process::eSeverity::warning:
           task_state_pb.set_severity(eCAL::pb::sys::eProcessSeverity::proc_sev_warning);
           break;
-        case eCAL_Process_eSeverity::proc_sev_critical:
+        case eCAL::Process::eSeverity::critical:
           task_state_pb.set_severity(eCAL::pb::sys::eProcessSeverity::proc_sev_critical);
           break;
-        case eCAL_Process_eSeverity::proc_sev_failed:
+        case eCAL::Process::eSeverity::failed:
           task_state_pb.set_severity(eCAL::pb::sys::eProcessSeverity::proc_sev_failed);
           break;
         default:
@@ -208,19 +208,19 @@ namespace eCAL
 
         switch (task_state.severity_level)
         {
-        case eCAL_Process_eSeverity_Level::proc_sev_level1:
+        case eCAL::Process::eSeverityLevel::level1:
           task_state_pb.set_severity_level(eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level1);
           break;
-        case eCAL_Process_eSeverity_Level::proc_sev_level2:
+        case eCAL::Process::eSeverityLevel::level2:
           task_state_pb.set_severity_level(eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level2);
           break;
-        case eCAL_Process_eSeverity_Level::proc_sev_level3:
+        case eCAL::Process::eSeverityLevel::level3:
           task_state_pb.set_severity_level(eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level3);
           break;
-        case eCAL_Process_eSeverity_Level::proc_sev_level4:
+        case eCAL::Process::eSeverityLevel::level4:
           task_state_pb.set_severity_level(eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level4);
           break;
-        case eCAL_Process_eSeverity_Level::proc_sev_level5:
+        case eCAL::Process::eSeverityLevel::level5:
           task_state_pb.set_severity_level(eCAL::pb::sys::eProcessSeverityLevel::proc_sev_level5);
           break;
         default:
@@ -237,9 +237,9 @@ namespace eCAL
         task_pb.set_name               (task->GetName());
         task_pb.set_target_host        (task->GetTarget());
         ToProtobuf                     (*(task_pb.mutable_state()), task->GetMonitoringTaskState());
-        for (int pid : task->GetPids())
+        for (int process_id : task->GetPids())
         {
-          task_pb.add_pids(pid);
+          task_pb.add_process_ids(process_id);
         }
         task_pb.set_launch_order       (task->GetLaunchOrder());
         task_pb.set_path               (task->GetAlgoPath());

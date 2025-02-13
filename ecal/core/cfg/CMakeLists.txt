@@ -1,6 +1,6 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2025 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,55 @@
 #
 # ========================= eCAL LICENSE =================================
 
-# Merge all ecaltime config files
-# -> The ecaltime.ini will only contain valid settings for the time modules that were actually compiled.
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ecaltime.ini "")
-foreach(ECALTIME_CONFIG ${ECALTIME_CONFIG_FILES})
-  file(READ ${ECALTIME_CONFIG} CONTENTS)
-  file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/ecaltime.ini "${CONTENTS}")
-endforeach()
+project(ecal_generate_config)
+
+# Set the name of the YAML file to be generated
+set(ECAL_YAML "ecal.yaml")
+set(TIME_YAML "ecaltime.yaml")
+
+set(ECAL_YAML_PATH ${CMAKE_CURRENT_BINARY_DIR}/${ECAL_YAML})
+set(TIME_YAML_PATH ${CMAKE_CURRENT_BINARY_DIR}/${TIME_YAML})
+
+add_executable(${PROJECT_NAME} 
+  ${ECAL_CORE_PROJECT_ROOT}/core/cfg/generate_configuration_yaml.cpp
+  ${ECAL_CORE_PROJECT_ROOT}/core/src/config/configuration_writer.cpp
+  ${ECAL_CORE_PROJECT_ROOT}/core/src/config/default_configuration.cpp
+  ${ECAL_CORE_PROJECT_ROOT}/core/src/config/ecal_path_processing.cpp
+)
+
+# Set the output paths for the generated YAML files
+set(YAML_PATHS
+  ${ECAL_YAML_PATH}
+  ${TIME_YAML_PATH}
+)
+
+# Add a custom command to generate the YAML file
+add_custom_command(
+  OUTPUT  ${YAML_PATHS}                            # Specify the output file
+  COMMAND $<TARGET_FILE:${PROJECT_NAME}> --dump    # Command to run the executable
+  DEPENDS ${PROJECT_NAME}                          # Ensure the executable is built before running the command
+  COMMENT "Generating ${YAML_PATHS}"               # Comment to display during the build process
+  VERBATIM                                         # Ensure command arguments are passed as-is
+)
+
+# Add a custom target that depends on the generated YAML file
+add_custom_target(run_${PROJECT_NAME} ALL
+  DEPENDS ${YAML_PATHS}       # Ensure the custom command is executed
+)
+
+# Ensure the executable is built before running the custom target
+add_dependencies(run_${PROJECT_NAME} ${PROJECT_NAME})
+
+# Specify include directories for the executable
+target_include_directories(${PROJECT_NAME} PRIVATE 
+  ${ECAL_CORE_PROJECT_ROOT}/core/src
+  ${ECAL_CORE_PROJECT_ROOT}/core/include
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  eCAL::core
+  eCAL::ecal-utils
+)
 
 # Select the correct ecal config directory on Linux and Windows
 if(UNIX)
@@ -33,27 +75,25 @@ else()
   message(STATUS "Unsupported OS, not installing configs")
 endif()
 
-configure_file(
-  ecal.ini
-  ecal.ini
-)
-
-# Install the configs
+# Install the generated YAML file if not cross-compiling
 if(ECAL_SHARED_CONFIG AND NOT CMAKE_CROSSCOMPILING)
   install(
     FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/ecal.ini
+      ${ECAL_YAML_PATH}             # Files to install
     DESTINATION
-      ${ECAL_SHARED_CONFIG}
-    COMPONENT configuration
+      ${ECAL_SHARED_CONFIG}         # Destination directory
+    COMPONENT configuration         # Installation component
   )
-  if(BUILD_TIME)
+
+  if (ECAL_BUILD_TIMEPLUGINS)
     install(
       FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/ecaltime.ini
+        ${TIME_YAML_PATH}             # Files to install
       DESTINATION
-        ${ECAL_SHARED_CONFIG}
-      COMPONENT configuration        
+        ${ECAL_SHARED_CONFIG}         # Destination directory
+      COMPONENT configuration         # Installation component
     )
   endif()
 endif()
+
+ecal_install_app(${PROJECT_NAME})

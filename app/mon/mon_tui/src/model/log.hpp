@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #ifdef _MSC_VER
 #pragma warning(push, 0) // disable proto warnings
 #endif
+#include "ecal/core/pb/logging.pb.h"
 #include "ecal/core/pb/monitoring.pb.h"
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -38,7 +39,7 @@ struct LogEntry
   };
   int64_t time;
   std::string   host_name;
-  int32_t       pid;
+  int32_t       process_id;
   std::string   process_name;
   std::string   process_path;
   Level         log_level;
@@ -53,7 +54,7 @@ class LogModel
   bool is_polling;
   int capacity = 500;
 
-  eCAL::pb::Logging logs;
+  eCAL::pb::LogMessageList logs;
 
   std::mutex mtx;
   std::thread update_thread;
@@ -72,21 +73,21 @@ class LogModel
   {
     switch (val)
     {
-    case eCAL_Logging_eLogLevel::log_level_debug1:
+    case eCAL::Logging::eLogLevel::log_level_debug1:
       return LogEntry::Level::DEBUG1;
-    case eCAL_Logging_eLogLevel::log_level_debug2:
+    case eCAL::Logging::eLogLevel::log_level_debug2:
       return LogEntry::Level::DEBUG2;
-    case eCAL_Logging_eLogLevel::log_level_debug3:
+    case eCAL::Logging::eLogLevel::log_level_debug3:
       return LogEntry::Level::DEBUG3;
-    case eCAL_Logging_eLogLevel::log_level_debug4:
+    case eCAL::Logging::eLogLevel::log_level_debug4:
       return LogEntry::Level::DEBUG4;
-    case eCAL_Logging_eLogLevel::log_level_warning:
+    case eCAL::Logging::eLogLevel::log_level_warning:
       return LogEntry::Level::WARNING;
-    case eCAL_Logging_eLogLevel::log_level_error:
+    case eCAL::Logging::eLogLevel::log_level_error:
       return LogEntry::Level::ERROR;
-    case eCAL_Logging_eLogLevel::log_level_fatal:
+    case eCAL::Logging::eLogLevel::log_level_fatal:
       return LogEntry::Level::FATAL;
-    case eCAL_Logging_eLogLevel::log_level_info:
+    case eCAL::Logging::eLogLevel::log_level_info:
     default:
       return LogEntry::Level::INFO;
     }
@@ -96,10 +97,10 @@ class LogModel
   {
     return LogEntry {
       val.time(),
-      val.hname(),
-      val.pid(),
-      val.uname(),
-      val.pname(),
+      val.host_name(),
+      val.process_id(),
+      val.unit_name(),
+      val.process_name(),
       ToLogLevel(val.level()),
       val.content()
     };
@@ -110,23 +111,23 @@ class LogModel
     {
       std::lock_guard<std::mutex> lock{mtx};
       std::string raw_data;
-      eCAL::Monitoring::GetLogging(raw_data);
+      eCAL::Logging::GetLogging(raw_data);
       logs.ParseFromString(raw_data);
 
-      auto &pb_logs = logs.logs();
+      auto &pb_logs = logs.log_messages();
       auto new_entries_count = pb_logs.size();
       if(new_entries_count == 0)
       {
         return;
       }
       auto new_size = data.size() + new_entries_count;
-      size_t overflow_size = new_size - capacity;
+      int overflow_size = static_cast<int>(new_size) - capacity;
 
       if(overflow_size > 0)
       {
         data.erase(data.begin(), data.begin() + overflow_size);
       }
-      for(auto &l: logs.logs()) data.push_back(ToLogEntry(l));
+      for(auto &l: logs.log_messages()) data.push_back(ToLogEntry(l));
     }
 
     NotifyUpdate();

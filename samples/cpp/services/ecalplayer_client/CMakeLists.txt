@@ -1,6 +1,6 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2025 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,8 @@ set(ecalplayer_client_src
 ecal_add_sample(${PROJECT_NAME} ${ecalplayer_client_src})
 
 target_link_libraries(${PROJECT_NAME} 
-    eCAL::core
+  PRIVATE
+    eCAL::protobuf_core
     eCAL::app_pb
 )
 
@@ -39,4 +40,4 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_14)
 
 ecal_install_sample(${PROJECT_NAME})
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER samples/cpp/services)
+set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER samples/cpp/services/ecalplay)

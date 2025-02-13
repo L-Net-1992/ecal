@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,10 +57,6 @@ class TopicDetailsView : public View
       separatorEmpty(),
       text("External connections: " + std::to_string(details->external_connections_count)),
       separatorEmpty(),
-      text("QOS - Reliability: " + std::to_string(details->reliability)),
-      text("QOS - History: " + std::to_string(details->history_kind)),
-      text("QOS - History depth: " + std::to_string(details->history_depth)),
-      separatorEmpty(),
       text("Attributes:"),
       vbox(attributes)
     );
@@ -77,13 +73,14 @@ class TopicDetailsView : public View
       vizualization_view = ftxui::Renderer([]{ return ftxui::emptyElement(); });
     }
 
-    auto tname = topic->name;
-    auto ttype = topic->type;
-    if(tname != prev_topic)
+    const auto topic_name = topic->name;
+    const auto tencoding = topic->encoding;
+    const auto ttype = topic->type;
+    if(topic_name != prev_topic)
     {
-      prev_topic = tname;
+      prev_topic = topic_name;
       vizualization_view->Detach();
-      vizualization_view = CreateVisualizationView(view_factory, view_model->view_model_factory, tname, ttype);
+      vizualization_view = CreateVisualizationView(view_factory, view_model->view_model_factory, topic_name, tencoding, ttype);
       Add(vizualization_view);
     }
     return vizualization_view;

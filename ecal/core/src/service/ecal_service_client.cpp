@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,236 +21,183 @@
  * @brief  eCAL service client interface
 **/
 
+#include <ecal/service/client.h>
 #include <ecal/ecal.h>
+
+#include "ecal_clientgate.h"
+#include "ecal_global_accessors.h"
 #include "ecal_service_client_impl.h"
+
+#include <string>
 
 namespace eCAL
 {
-  /**
-   * @brief Constructor.
-  **/
-  CServiceClient::CServiceClient() :
-                  m_service_client_impl(nullptr),
-                  m_created(false)
+  CServiceClient::CServiceClient(const std::string& service_name_, const ServiceMethodInformationSetT& method_information_set_, const ClientEventCallbackT& event_callback_)
   {
+    // create client implementation
+    m_service_client_impl = CServiceClientImpl::CreateInstance(service_name_, method_information_set_, event_callback_);
+
+    // register client
+    if (g_clientgate() != nullptr) g_clientgate()->Register(service_name_, m_service_client_impl);
   }
 
-  /**
-   * @brief Constructor. 
-   *
-   * @param service_name_  Service name. 
-  **/
-  CServiceClient::CServiceClient(const std::string& service_name_) :
-                   m_service_client_impl(nullptr),
-                   m_created(false)
-  {
-    Create(service_name_);
-  }
-
-  /**
-   * @brief Destructor. 
-  **/
   CServiceClient::~CServiceClient()
   {
-    Destroy();
+    // could be already destroyed by move
+    if (m_service_client_impl == nullptr) return;
+
+    // unregister client
+    if (g_clientgate() != nullptr) g_clientgate()->Unregister(m_service_client_impl->GetServiceName(), m_service_client_impl);
   }
 
-  /**
-   * @brief Creates this object. 
-   *
-   * @param service_name_  Service name. 
-   *
-   * @return  True if successful. 
-  **/
-  bool CServiceClient::Create(const std::string& service_name_)
+  CServiceClient::CServiceClient(CServiceClient&& rhs) noexcept
+    : m_service_client_impl(std::move(rhs.m_service_client_impl))
   {
-    if(m_created) return(false);
-
-    m_service_client_impl = new CServiceClientImpl;
-    m_service_client_impl->Create(service_name_);
-
-    m_created = true;
-    return(true);
   }
 
-  /**
-   * @brief Destroys this object. 
-   *
-   * @return  True if successful. 
-  **/
-  bool CServiceClient::Destroy()
+  CServiceClient& CServiceClient::operator=(CServiceClient&& rhs) noexcept
   {
-    if(!m_created) return(false);
-    m_created = false;
-
-    m_service_client_impl->Destroy();
-    delete m_service_client_impl;
-    m_service_client_impl = nullptr;
-
-    return(true);
-  }
-
-  /**
-   * @brief Change the host name filter for that client instance
-   *
-   * @param host_name_  Host name filter (empty == all hosts)
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::SetHostName(const std::string& host_name_)
-  {
-    if (!m_created) return(false);
-    m_service_client_impl->SetHostName(host_name_);
-    return(true);
-  }
-
-  /**
-   * @brief Call method of this service, responses will be returned by callback.
-   *
-   * @param method_name_  Method name.
-   * @param request_      Request string.
-   * @param timeout_      Maximum time before operation returns (in milliseconds, -1 means infinite).
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::Call(const std::string& method_name_, const std::string& request_, int timeout_)
-  {
-    if(!m_created) return(false);
-    return(m_service_client_impl->Call(method_name_, request_, timeout_));
-  }
-
-  /**
-   * @brief Call a method of this service, all responses will be returned in service_response_vec_.
-   *
-   * @param       method_name_           Method name.
-   * @param       request_               Request string.
-   * @param       timeout_               Maximum time before operation returns (in milliseconds, -1 means infinite).
-   * @param [out] service_response_vec_  Response vector containing service responses from every called service (null pointer == no response).
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::Call(const std::string& method_name_, const std::string& request_, int timeout_, ServiceResponseVecT* service_response_vec_)
-  {
-    if (!m_created) return(false);
-    return(m_service_client_impl->Call(method_name_, request_, timeout_, service_response_vec_));
-  }
-
-  /**
-   * @brief Call method of this service, for specific host (deprecated).
-   *
-   * @param       host_name_         Host name.
-   * @param       method_name_       Method name.
-   * @param       request_           Request string.
-   * @param [out] service_info_      Service response struct for detailed informations.
-   * @param [out] response_          Response string.
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::Call(const std::string& host_name_, const std::string& method_name_, const std::string& request_, struct SServiceResponse& service_info_, std::string& response_)
-  {
-    if (!m_created) return(false);
-
-    m_service_client_impl->SetHostName(host_name_);
-
-    ServiceResponseVecT service_response_vec;
-    if (m_service_client_impl->Call(method_name_, request_, -1, &service_response_vec))
+    if (this != &rhs)
     {
-      if (!service_response_vec.empty())
+      m_service_client_impl = std::move(rhs.m_service_client_impl);
+    }
+    return *this;
+  }
+
+  std::vector<CClientInstance> CServiceClient::GetClientInstances() const
+  {
+    std::vector<CClientInstance> instances;
+    if (m_service_client_impl == nullptr) return instances;
+
+    auto entity_ids = m_service_client_impl->GetServiceIDs();
+    instances.reserve(entity_ids.size());
+    for (const auto& entity_id : entity_ids)
+    {
+      instances.emplace_back(entity_id, m_service_client_impl);
+    }
+    return instances;
+  }
+
+  bool CServiceClient::CallWithResponse(const std::string& method_name_, const std::string& request_, ServiceResponseVecT& service_response_vec_, int timeout_) const
+  {
+    auto instances = GetClientInstances();
+    size_t num_instances = instances.size();
+
+    // vector to hold futures for the return values and responses
+    std::vector<std::future<std::pair<bool, SServiceResponse>>> futures;
+    futures.reserve(num_instances);
+
+    // launch asynchronous calls for each instance
+    for (auto& instance : instances)
+    {
+      futures.emplace_back(std::async(std::launch::async,
+        [&instance, method_name_ = method_name_, request_ = request_, timeout_]()
+        {
+          return instance.CallWithResponse(method_name_, request_, timeout_);
+        }));
+    }
+
+    bool overall_success = true;
+    // ensure the response vector is empty before populating it
+    service_response_vec_.clear();
+
+    // collect responses
+    for (auto& future : futures)
+    {
+      try
       {
-        service_info_ = service_response_vec[0];
-        response_ = service_info_.response;
-        return(true);
+        // explicitly unpack the pair
+        const std::pair<bool, SServiceResponse> result = future.get();
+        bool success = result.first;
+        const SServiceResponse response = result.second;
+
+        // add response to the vector
+        service_response_vec_.emplace_back(response);
+
+        // aggregate success states
+        overall_success &= success;
+      }
+      catch (const std::exception& e)
+      {
+        // handle exceptions and add an error response
+        SServiceResponse error_response;
+        error_response.error_msg = e.what();
+        error_response.call_state = eCallState::failed;
+        service_response_vec_.emplace_back(error_response);
+
+        // mark overall success as false if any call fails
+        overall_success = false;
       }
     }
-    return(false);
+
+    return overall_success;
   }
 
-  /**
-   * @brief Call a method of this service asynchronously, responses will be returned by callback.
-   *
-   * @param method_name_  Method name.
-   * @param request_      Request string.
-   * @param timeout_      Maximum time before operation returns (in milliseconds, -1 means infinite) - NOT SUPPORTED YET.
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::CallAsync(const std::string& method_name_, const std::string& request_, int timeout_)
+  bool CServiceClient::CallWithCallback(const std::string& method_name_, const std::string& request_, const ResponseCallbackT& response_callback_, int timeout_) const
   {
-    if (!m_created) return(false);
-    (void)timeout_; // will be implemented later
-    return(m_service_client_impl->CallAsync(method_name_, request_ /*, timeout_*/));
+    auto instances = GetClientInstances();
+    size_t num_instances = instances.size();
+
+    // vector to hold futures for the return values
+    std::vector<std::future<bool>> futures;
+    futures.reserve(num_instances);
+
+    for (auto& instance : instances)
+    {
+      futures.emplace_back(std::async(std::launch::async,
+        [&instance, method_name_ = method_name_, request_ = request_, response_callback_, timeout_]()
+        {
+          return instance.CallWithCallback(method_name_, request_, response_callback_, timeout_);
+        }));
+    }
+
+    bool return_state = true;
+    for (auto& future : futures)
+    {
+      try
+      {
+        return_state &= future.get();
+      }
+      catch (const std::exception& /*e*/)
+      {
+        // handle exceptions
+        return_state = false;
+      }
+    }
+
+    return return_state;
   }
 
-  /**
-   * @brief Add server response callback.
-   *
-   * @param callback_  Callback function for server response.
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::AddResponseCallback(const ResponseCallbackT& callback_)
+  bool CServiceClient::CallWithCallbackAsync(const std::string& method_name_, const std::string& request_, const ResponseCallbackT& response_callback_) const
   {
-    if (!m_created) return false;
-    return(m_service_client_impl->AddResponseCallback(callback_));
+    bool return_state = true;
+    auto instances = GetClientInstances();
+    for (auto& instance : instances)
+    {
+      return_state &= instance.CallWithCallbackAsync(method_name_, request_, response_callback_);
+    }
+    return return_state;
   }
 
-  /**
-   * @brief Remove server response callback.
-   *
-   * @return  True if successful.
-  **/
-  bool CServiceClient::RemResponseCallback()
+  std::string CServiceClient::GetServiceName() const
   {
-    if (!m_created) return false;
-    return(m_service_client_impl->RemResponseCallback());
-  }
-
-  /**
-   * @brief Add client event callback function.
-   *
-   * @param type_      The event type to react on.
-   * @param callback_  The callback function to add.
-   *
-   * @return  True if succeeded, false if not.
-  **/
-  bool CServiceClient::AddEventCallback(eCAL_Client_Event type_, ClientEventCallbackT callback_)
-  {
-    if (!m_created) return false;
-    return m_service_client_impl->AddEventCallback(type_, callback_);
-  }
-
-  /**
-   * @brief Remove client event callback function.
-   *
-   * @param type_  The event type to remove.
-   *
-   * @return  True if succeeded, false if not.
-  **/
-  bool CServiceClient::RemEventCallback(eCAL_Client_Event type_)
-  {
-    if (!m_created) return false;
-    return m_service_client_impl->RemEventCallback(type_);
-  }
-
-  /**
-   * @brief Retrieve service name.
-   *
-   * @return  The service name.
-  **/
-  std::string CServiceClient::GetServiceName()
-  {
-    if (!m_created) return "";
+    if (m_service_client_impl == nullptr) return "";
     return m_service_client_impl->GetServiceName();
   }
 
-  /**
-   * @brief Check connection state.
-   *
-   * @return  True if connected, false if not.
-  **/
-  bool CServiceClient::IsConnected()
+  SServiceId CServiceClient::GetServiceId() const
   {
-    if (!m_created) return false;
-    return m_service_client_impl->IsConnected();
+    if (m_service_client_impl == nullptr) return SServiceId();
+    return m_service_client_impl->GetServiceId();
+  }
+
+  bool CServiceClient::IsConnected() const
+  {
+    const auto instances = GetClientInstances();
+    for (const auto& instance : instances)
+    {
+      if (instance.IsConnected()) return true;
+    }
+    return false;
   }
 }

@@ -36,8 +36,7 @@ namespace eCAL
 
     EcalRec::EcalRec()
     {
-      eCAL::Initialize(0, nullptr, "eCALRecClient", eCAL::Init::Default | eCAL::Init::Monitoring);
-      eCAL::Monitoring::SetFilterState(false);
+      eCAL::Initialize("eCALRecClient", eCAL::Init::Default | eCAL::Init::Monitoring);
 
       recorder_ = std::make_unique<EcalRecImpl>();
     }

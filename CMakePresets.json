@@ -1,0 +1,129 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default",
+      "description": "Common settings for all presets.",
+      "binaryDir": "${sourceDir}/out/${presetName}/build",
+      "installDir": "${sourceDir}/out/${presetName}/install",
+      "cacheVariables": {
+        "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "cmake/submodule_dependencies.cmake"
+      }
+    },
+    {
+      "name": "release",
+      "hidden": true,
+      "description": "Single config Release build for inheriting",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debug",
+      "hidden": true,
+      "description": "Single config Debug build for inheriting",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "relwithdebinfo",
+      "hidden": true,
+      "description": "Single config RelWithDebInfo build for inheriting",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "core",
+      "inherits": [
+        "default",
+        "release"
+      ],
+      "displayName": "eCAL Core",
+      "description": "eCAL core library only configuration",
+      "cacheVariables": {
+        "ECAL_USE_HDF5": "OFF",
+        "ECAL_USE_QT": "OFF",
+        "ECAL_USE_CURL": "OFF",
+        "ECAL_USE_FTXUI": "OFF",
+        "ECAL_BUILD_APPS": "OFF",
+        "ECAL_BUILD_SAMPLES": "OFF",
+        "ECAL_CORE_CONFIGURATION": "OFF",
+        "ECAL_INSTALL_SAMPLE_SOURCES": "OFF"
+      }
+    },
+    {
+      "name": "python",
+      "inherits": "core",
+      "displayName": "Python Extensions",
+      "description": "Minimal build for Python extensions",
+      "cacheVariables": {
+        "ECAL_USE_HDF5": "ON",
+        "ECAL_BUILD_PY_BINDING": "ON",
+        "BUILD_SHARED": "OFF"
+      }
+    },
+    {
+      "name": "docs",
+      "inherits": "python",
+      "displayName": "Documentation",
+      "description": "Build documentation",
+      "cacheVariables": {
+        "ECAL_BUILD_DOCS": "ON"
+      }
+    },
+    {
+      "name": "cli",
+      "inherits": "core",
+      "displayName": "CLI Apps",
+      "description": "eCAL CLI applications",
+      "cacheVariables": {
+        "ECAL_USE_HDF5": "ON",
+        "ECAL_USE_CURL": "ON",
+        "ECAL_USE_FTXUI": "ON",
+        "ECAL_BUILD_APPS": "ON",
+        "ECAL_BUILD_SAMPLES": "ON"
+      }
+    },
+    {
+      "name": "gui",
+      "inherits": "cli",
+      "displayName": "GUI Apps",
+      "description": "eCAL GUI and CLI applications",
+      "cacheVariables": {
+        "ECAL_USE_QT": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "core",
+      "description": "Build core library only",
+      "configurePreset": "core"
+    },
+    {
+      "name": "python",
+      "description": "Build python extensions",
+      "configurePreset": "python",
+      "targets": "ecal_python"
+    },
+    {
+      "name": "docs",
+      "description": "Build sphinx documentation",
+      "configurePreset": "docs",
+      "targets": "documentation_sphinx"
+    },
+    {
+      "name": "cli",
+      "description": "Build CLI apps",
+      "configurePreset": "cli"
+    },
+    {
+      "name": "gui",
+      "description": "Build GUI and CLI apps",
+      "configurePreset": "gui"
+    }
+  ]
+}

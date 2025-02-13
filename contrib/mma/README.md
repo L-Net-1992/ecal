@@ -36,13 +36,17 @@ The MachineMonitoringAgent application on Windows needs the performance counters
 
 ## Linux
 
-Before running the Machine Monitoring Application on Linux make sure the following packages are installed:
-  - systat : sudo apt install sysstat
-  - ifstat : sudo apt install ifstat
+The Machine Monitoring Application on Linux collects information via:
+  - /proc virtual file system
+  - command df
+  - file /etc/os-release
+
+These should be available on all standard Linux distributions
+and even on embedded Linux distributions.
 
 ### Installation
 
-  In order to install the MachineMonitoringAgent along with eCAL, the cmake "-DBUILD_APPS=ON" flag needs to be set ON.
+  In order to install the MachineMonitoringAgent along with eCAL, the cmake "-DECAL_BUILD_APPS=ON" flag needs to be set ON.
 
   MachineMonitoringAgent stand-alone installation:
 

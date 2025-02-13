@@ -17,10 +17,12 @@
  * ========================= eCAL LICENSE =================================
 */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <string>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include <string.h>
 #include <iostream>

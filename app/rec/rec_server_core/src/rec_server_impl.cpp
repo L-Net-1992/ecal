@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ namespace eCAL
       settings_.ClearHostFilter(); // There is no global host filter
 
       // Initialize eCAL
-      eCAL::Initialize(0, nullptr, "", eCAL::Init::Default | eCAL::Init::Monitoring);
+      eCAL::Initialize("eCALRec-Server", eCAL::Init::Default | eCAL::Init::Monitoring);
 
       // Start FTP Server
       ftp_server_->start(5);
@@ -698,7 +698,7 @@ namespace eCAL
             job.can_upload_  = true;
           else
             job.can_upload_  = false;
-          result = SimulateAddComment_NoLock(job, job.local_evaluated_job_config_.GetJobId());
+          result = SimulateAddComment_NoLock(job, static_cast<int>(job.local_evaluated_job_config_.GetJobId()));
           if (result == eCAL::rec::Error(eCAL::rec::Error::OK))
             job.can_comment_ = true;
           else
@@ -806,10 +806,10 @@ namespace eCAL
         auto connected_rec_client_it = connected_rec_clients_.find(enabled_rec_client.first);
         if (connected_rec_client_it != connected_rec_clients_.end())
         {
-          int32_t pid = connected_rec_client_it->second->GetStatus().first.pid_;
-          if (pid >= 0)
+          int32_t process_id = connected_rec_client_it->second->GetStatus().first.pid_;
+          if (process_id >= 0)
           {
-            running_enabled_rec_clients[enabled_rec_client.first] = pid;
+            running_enabled_rec_clients[enabled_rec_client.first] = process_id;
           }
         }
       }

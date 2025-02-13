@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,12 @@
 */
 
 #pragma once
+
 #include <iostream>
-#include <unordered_map>
 #include <map>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 #include <ecalhdf5/eh5_meas.h>
 #include <ecal_utils/filesystem.h>
@@ -39,12 +42,14 @@ public:
   void        setPath(const std::string& path, const std::string& base_name, const size_t& max_size_per_file);
   void        createChannel(const std::string& channel_name, const eCALMeasCutterUtils::ChannelInfo& channel_info);
   void        setData(eCALMeasCutterUtils::Timestamp timestamp, const eCALMeasCutterUtils::MetaData& meta_data, const std::string& payload);
-  std::string getOutputPath();
+  std::string getOutputPath() const;
+  std::string getRootOutputPath() const;
 
 private:
-  std::unique_ptr<eCAL::eh5::HDF5Meas> _writer;
-  std::string                          _current_channel_name;
-  std::string                          _output_path;
+  std::unique_ptr<eCAL::eh5::v2::HDF5Meas>              _writer;
+  std::string                                           _current_channel_name;
+  std::string                                           _output_path;
+  std::string                                           _root_output_path;
 };
 
 class ExporterException : public std::exception

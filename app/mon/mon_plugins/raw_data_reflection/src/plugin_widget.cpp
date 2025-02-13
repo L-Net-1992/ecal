@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,15 +59,25 @@ PluginWidget::PluginWidget(const QString& topic_name, const QString&, QWidget* p
   ui_.content_layout->addWidget(frame);
 
   // Connect the eCAL Subscriber
-  subscriber_.AddReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2));
+  subscriber_.SetReceiveCallback([this](const eCAL::STopicId& /*topic_id*/,
+    const eCAL::SDataTypeInformation& /*data_type_info*/,
+    const eCAL::SReceiveCallbackData& callback_data)
+    {
+      ecalMessageReceivedCallback(callback_data);
+    });
 }
 
-void PluginWidget::ecalMessageReceivedCallback(const struct eCAL::SReceiveCallbackData* callback_data)
+PluginWidget::~PluginWidget()
+{
+  subscriber_.RemoveReceiveCallback();
+}
+
+void PluginWidget::ecalMessageReceivedCallback(const eCAL::SReceiveCallbackData& callback_data)
 {
   std::lock_guard<std::mutex> message_lock(message_mutex_);
-  last_message_ = QByteArray(static_cast<char*>(callback_data->buf), callback_data->size);
+  last_message_ = QByteArray(static_cast<const char*>(callback_data.buffer), callback_data.buffer_size);
 
-  last_message_publish_timestamp_ = eCAL::Time::ecal_clock::time_point(std::chrono::microseconds(callback_data->time));
+  last_message_publish_timestamp_ = eCAL::Time::ecal_clock::time_point(std::chrono::microseconds(callback_data.send_timestamp));
 
   received_message_counter_++;
   new_msg_available_ = true;
@@ -111,10 +121,6 @@ void PluginWidget::updatePublishTimeLabel()
   ui_.publish_timestamp_label->setText(time_string);
 }
 
-PluginWidget::~PluginWidget()
-{
-}
-
 void PluginWidget::onUpdate()
 {
   if (new_msg_available_)
@@ -127,25 +133,37 @@ void PluginWidget::onUpdate()
 
 void PluginWidget::onResume()
 {
-  subscriber_.AddReceiveCallback(std::bind(&PluginWidget::ecalMessageReceivedCallback, this, std::placeholders::_2));
+  // (Re)Connect the eCAL Subscriber
+  subscriber_.SetReceiveCallback([this](const eCAL::STopicId& /*topic_id*/,
+    const eCAL::SDataTypeInformation& /*data_type_info*/,
+    const eCAL::SReceiveCallbackData& callback_data)
+    {
+      ecalMessageReceivedCallback(callback_data);
+    });
 }
 
 void PluginWidget::onPause()
 {
-  subscriber_.RemReceiveCallback();
+  subscriber_.RemoveReceiveCallback();
 }
 
 void PluginWidget::updateRawMessageView()
 {
   std::lock_guard<std::mutex> message_lock(message_mutex_);
 
-  quint16 crc16 = qChecksum(last_message_.data(), last_message_.length());
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  const quint16 crc16 = qChecksum(last_message_.data(), last_message_.length());
+#else
+  const quint16 crc16 = qChecksum(last_message_);
+#endif
+
   QString crc16_string = QString("%1").arg(QString::number(crc16, 16).toUpper(), 4, '0');
   QString size_text = tr("Binary data of ") + QString::number(last_message_.size()) + tr(" bytes (CRC16: ") + crc16_string + ")";
 
   size_label_->setText(size_text);
 
-  QByteArray last_message_trimmed(last_message_.data(), std::min(last_message_.length(), 1024));
+  QByteArray const last_message_trimmed(last_message_.data(), std::min(static_cast<std::size_t>(last_message_.length()), std::size_t(1024)));
   blob_text_edit_->setPlainText(
 #if QT_VERSION < QT_VERSION_CHECK(5, 9, 0)
     bytesToHex(last_message_trimmed, ' ')

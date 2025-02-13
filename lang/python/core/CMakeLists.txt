@@ -1,13 +1,13 @@
 # ========================= eCAL LICENSE =================================
 #
-# Copyright (C) 2016 - 2019 Continental Corporation
+# Copyright (C) 2016 - 2025 Continental Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,57 +16,73 @@
 #
 # ========================= eCAL LICENSE =================================
 
-if (WIN32)
-    add_custom_target(copy_ecal_core_dll ALL
-        COMMAND cmake -E copy_if_different "$<TARGET_FILE:eCAL::core>" "${PYTHON_BINARY_MODULE_DIR}"
-        COMMENT "Copy eCAL Core DLL to python directory"
-        DEPENDS eCAL::core
-    )
-    set_property(TARGET copy_ecal_core_dll PROPERTY FOLDER lang/python/core)
-endif()
-
-# ==========================================
-
 project(_ecal_core_py)
 
-find_package(Python COMPONENTS Development Interpreter)
-find_package(Protobuf REQUIRED)
-
-set(ecal_lang_py_src
-    src/ecal_wrap.cxx
+######
+# build
+######
+python_add_library(${PROJECT_NAME} MODULE WITH_SOABI
+  src/ecal_clang.cpp
+  src/ecal_clang.h
+  src/ecal_wrap.cxx
 )
 
-ecal_add_python_module(${PROJECT_NAME} SOURCES ${ecal_lang_py_src} PYTHON_CODE ${CMAKE_CURRENT_SOURCE_DIR}/ecal)
+set(python_files
+  ecal/__init__.py
+  ecal/core/__init__.py
+  ecal/core/core.py
+  ecal/core/publisher.py
+  ecal/core/service.py
+  ecal/core/subscriber.py
+  ecal/proto/__init__.py
+  ecal/proto/helper.py
+)
+
+target_sources(${PROJECT_NAME}
+  PUBLIC    
+    FILE_SET ecal_core_python_files
+    TYPE HEADERS
+    BASE_DIRS .
+    FILES
+      ${python_files}
+)
 
 target_link_libraries(${PROJECT_NAME}
-    PRIVATE
-        Python::Python
-        eCAL::core
-        eCAL::core_pb
+  PRIVATE
+    eCAL::core
+)
+
+# we're using only definitions from eCAL::core_c but no functionality.
+# This is a bit hacky, however, we will hopefully switch to nanobind soon.
+target_include_directories(${PROJECT_NAME}
+  PRIVATE
+    $<TARGET_PROPERTY:eCAL::core_c,INCLUDE_DIRECTORIES>
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_14)
 
-if (WIN32)
-    add_dependencies(${PROJECT_NAME} copy_ecal_core_dll)
-endif()
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER lang/python/core)
+########
+# installation
+########
+install(TARGETS ${PROJECT_NAME} core
+  RUNTIME DESTINATION ecal COMPONENT python EXCLUDE_FROM_ALL
+  LIBRARY DESTINATION ecal COMPONENT python EXCLUDE_FROM_ALL NAMELINK_SKIP
+)
 
-if(BUILD_STANDALONE_PY_WHEEL AND NOT WIN32)
-  find_package(patchelf REQUIRED)
-  add_custom_command(TARGET ${PROJECT_NAME} 
-                     POST_BUILD
-                     COMMAND "${CMAKE_COMMAND}" ARGS "-DRUNTIME_FILE=\"$<TARGET_FILE:${PROJECT_NAME}>\"" "-DRUNTIME_DEP_FILTER=\"ecal_core|protobuf\"" "-DRUNTIME_DEPLOY_DIR=\"${PYTHON_BINARY_MODULE_DIR}\"" -P "${CMAKE_SOURCE_DIR}/cmake/deploy_runtime_deps.cmake"
-                     COMMAND "${PATCHELF_COMMAND}" ARGS "--remove-rpath" "\"$<TARGET_FILE:${PROJECT_NAME}>\""
-                     COMMAND "${PATCHELF_COMMAND}" ARGS "--force-rpath" "--set-rpath" "\\$$ORIGIN" "\"$<TARGET_FILE:${PROJECT_NAME}>\"")
-endif()
 
-if(ECAL_INCLUDE_PY_SAMPLES)
-  if(WIN32)
+##############
+# IDE appearance
+##############
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  FOLDER lang/python/core
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Python Files" FILES ${python_files})
 
-    include_external_msproject(ecal_core_py ${CMAKE_CURRENT_SOURCE_DIR}/ecal_core_py.pyproj)
-    set_property(TARGET ecal_core_py PROPERTY FOLDER lang/python/core)
 
-  endif()
-endif()
+##########
+# IDE Debugging / Runtime
+###########
+copy_python_code(TARGET ${PROJECT_NAME} PYTHON_FILES ${python_files} PYTHON_CODE_ROOT .)
+
+ecal_python_set_output_directory(${PROJECT_NAME})

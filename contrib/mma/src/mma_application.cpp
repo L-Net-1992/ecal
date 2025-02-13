@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,24 +19,23 @@
 
 #include <atomic>
 #include <chrono>
-#include <functional>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <thread>
 
 #include "ecal/ecal.h"
-#include "ecal/ecal_process.h"
+#include "ecal/process.h"
 #include "ecal/msg/protobuf/publisher.h"
 
 #include "../include/logger.h"
 #include "../include/mma.h"
 #include "../include/mma_defs.h"
 #include "../include/zombie_instance_killer.h"
-#include "../include/interruptable_timer.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable: 4100 4127 4146 4505 4800 4189 4592) // disable proto warnings
+#pragma warning(disable : 4100 4127 4146 4505 4800 4189 4592) // disable proto warnings
 #endif
 #include <ecal/app/pb/mma/mma.pb.h>
 #ifdef _MSC_VER
@@ -49,17 +48,12 @@
 #include <direct.h>
 #include <TlHelp32.h>
 #else
-#include <csignal>
 #include <cstdlib>
-#include <errno.h>
-#include <fcntl.h>
 #include <iostream>
 #include <list>
 #include <stdio.h>
 #include <string>
 #include <sys/ioctl.h>
-#include <sys/select.h>
-#include <sys/types.h> 
 #include <termios.h>
 #include <unistd.h>
 
@@ -141,7 +135,7 @@ int main(int argc, char** argv)
   std::cout << app_version_header << std::endl << ecal_version_header << std::endl << std::endl;
 
   // initialize eCAL API
-  if (eCAL::Initialize(0, nullptr, MMA_APPLICATION_NAME, eCAL::Init::Publisher | eCAL::Init::ProcessReg) < 0)
+  if (!eCAL::Initialize(MMA_APPLICATION_NAME, eCAL::Init::Publisher))
   {
     std::cout << "eCAL initialization failed !";
     return 1;
@@ -153,7 +147,7 @@ int main(int argc, char** argv)
     Logger::getLogger()->ResumeLogging();
   }
 
-  eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "Running");
+  eCAL::Process::SetState(eCAL::Process::eSeverity::healthy, eCAL::Process::eSeverityLevel::level1, "Running");
 
   // create mma agent
   std::cout << std::endl << "Initializing machine monitoring agent ..." << std::endl;

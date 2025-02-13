@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@
 */
 
 #include "measurement_importer.h"
+#include <ecalhdf5/eh5_meas.h>
 
 MeasurementImporter::MeasurementImporter() :
-  _reader(new eCAL::eh5::HDF5Meas),
+  _reader(std::make_unique<eCAL::eh5::v2::HDF5Meas>()),
   _current_opened_channel_data()
 {
 }
@@ -66,20 +67,20 @@ void MeasurementImporter::openChannel(const std::string& channel_name)
   _current_opened_channel_data._timestamps.clear();
   _current_opened_channel_data._timestamp_entry_info_map.clear();
 
-  if (isProtoChannel(_reader->GetChannelType(channel_name)))
+  auto channel_information = _reader->GetChannelDataTypeInformation(channel_name);
+  if (isProtoChannel(channel_information))
   {
     _current_opened_channel_data._channel_info.format = eCALMeasCutterUtils::SerializationFormat::PROTOBUF;
-    _current_opened_channel_data._channel_info.type   = _reader->GetChannelType(channel_name).substr(6); // remove "proto:" from type string
   }
   else
   {
     _current_opened_channel_data._channel_info.format = eCALMeasCutterUtils::SerializationFormat::UNKNOWN;
-    _current_opened_channel_data._channel_info.type   = _reader->GetChannelType(channel_name);
   }
-  _current_opened_channel_data._channel_info.description = _reader->GetChannelDescription(channel_name);
+  _current_opened_channel_data._channel_info.type = channel_information.name;
+  _current_opened_channel_data._channel_info.description = channel_information.descriptor;
   _current_opened_channel_data._channel_info.name = channel_name;
 
-  eCAL::eh5::EntryInfoSet entry_info_set;
+  eCAL::experimental::measurement::base::EntryInfoSet entry_info_set;
   _reader->GetEntriesInfo(channel_name, entry_info_set);
 
   for (const auto& entry_info : entry_info_set)
@@ -176,10 +177,9 @@ bool MeasurementImporter::isEcalMeasFile(const std::string& path)
   return false;
 }
 
-bool MeasurementImporter::isProtoChannel(const std::string& channel_type)
+bool MeasurementImporter::isProtoChannel(const eCAL::experimental::measurement::base::DataTypeInformation& channel_info)
 {
-  std::string space = channel_type.substr(0, channel_type.find_first_of(':'));
-  return (space.compare("proto") == 0);
+  return (channel_info.encoding == "proto");
 }
 
 std::string MeasurementImporter::getLoadedPath()

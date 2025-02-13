@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 
 #include "ecal_servicegate.h"
 #include "service/ecal_service_server_impl.h"
+#include <atomic>
+#include <mutex>
+#include <shared_mutex>
 
 namespace eCAL
 {
@@ -34,91 +37,68 @@ namespace eCAL
 
   CServiceGate::~CServiceGate()
   {
-    Destroy();
+    Stop();
   }
 
-  void CServiceGate::Create()
+  void CServiceGate::Start()
   {
     if(m_created) return;
     m_created = true;
   }
 
-  void CServiceGate::Destroy()
+  void CServiceGate::Stop()
   {
     if(!m_created) return;
+
+    // destroy all remaining server
+    const std::unique_lock<std::shared_timed_mutex> lock(m_service_server_map_mutex);
+    m_service_server_map.clear();
+
     m_created = false;
   }
 
-  bool CServiceGate::Register(CServiceServerImpl* service_)
+  bool CServiceGate::Register(const std::string& service_name_, const std::shared_ptr<CServiceServerImpl>& server_)
   {
     if(!m_created) return(false);
 
     // register internal service
-    std::unique_lock<std::shared_timed_mutex> lock(m_service_set_sync);
-    m_service_set.insert(service_);
+    const std::unique_lock<std::shared_timed_mutex> lock(m_service_server_map_mutex);
+    m_service_server_map.emplace(std::pair<std::string, std::shared_ptr<CServiceServerImpl>>(service_name_, server_));
 
     return(true);
   }
 
-  bool CServiceGate::Unregister(CServiceServerImpl* service_)
+  bool CServiceGate::Unregister(const std::string& service_name_, const std::shared_ptr<CServiceServerImpl>& server_)
   {
-    if(!m_created) return(false);
-    bool ret_state(false);
+    if (!m_created) return(false);
+    bool ret_state = false;
 
-    // unregister internal service
-    std::unique_lock<std::shared_timed_mutex> lock(m_service_set_sync);
-    for (auto iter = m_service_set.begin(); iter != m_service_set.end();)
+    const std::unique_lock<std::shared_timed_mutex> lock(m_service_server_map_mutex);
+    auto res = m_service_server_map.equal_range(service_name_);
+    for (auto iter = res.first; iter != res.second; ++iter)
     {
-      if (*iter == service_)
+      if (iter->second == server_)
       {
-        iter = m_service_set.erase(iter);
+        m_service_server_map.erase(iter);
         ret_state = true;
-      }
-      else
-      {
-        iter++;
+        break;
       }
     }
 
     return(ret_state);
   }
 
-  void CServiceGate::ApplyClientRegistration(const eCAL::pb::Sample& ecal_sample_)
-  {
-    SClientAttr client;
-    auto& ecal_sample_client = ecal_sample_.client();
-    client.hname = ecal_sample_client.hname();
-    client.pname = ecal_sample_client.pname();
-    client.uname = ecal_sample_client.uname();
-    client.sname = ecal_sample_client.sname();
-    client.sid   = ecal_sample_client.sid();
-    client.pid   = static_cast<int>(ecal_sample_client.pid());
-
-    // create unique client key
-    client.key = client.sname + ":" + client.sid + "@" + std::to_string(client.pid) + "@" + client.hname;
-
-    // inform matching services
-    {
-      std::shared_lock<std::shared_timed_mutex> lock(m_service_set_sync);
-      for (auto& iter : m_service_set)
-      {
-        if (iter->GetServiceName() == client.sname)
-        {
-          iter->RegisterClient(client.key, client);
-        }
-      }
-    }
-  }
-
-  void CServiceGate::RefreshRegistrations()
+  void CServiceGate::GetRegistrations(Registration::SampleList& reg_sample_list_)
   {
     if (!m_created) return;
 
-    // refresh service registrations
-    std::shared_lock<std::shared_timed_mutex> lock(m_service_set_sync);
-    for (auto& iter : m_service_set)
+    // read server registrations
     {
-      iter->RefreshRegistration();
+      const std::shared_lock<std::shared_timed_mutex> lock(m_service_server_map_mutex);
+      for (const auto& iter : m_service_server_map)
+      {
+        reg_sample_list_.push_back(iter.second->GetRegistration());
+      }
     }
   }
-};
+}

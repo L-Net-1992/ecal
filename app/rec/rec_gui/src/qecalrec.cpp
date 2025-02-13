@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <rec_server_core/status.h>
 #include <rec_server_core/ecalstate_helpers.h>
 
-#include <ecal/ecal_process.h>
+#include <ecal/process.h>
 
 #include <QMessageBox>
 #include <QIcon>
@@ -78,7 +78,7 @@ Date: $HOST{TIME %F %R}
             auto status = this->status();
             auto config = this->enabledRecClients();
             auto ecalstate = eCAL::rec_server::GetProcessSeverity(status, config);
-            eCAL::Process::SetState(ecalstate.first, eCAL_Process_eSeverity_Level::proc_sev_level1, ecalstate.second.c_str());
+            eCAL::Process::SetState(ecalstate.first, eCAL::Process::eSeverityLevel::level1, ecalstate.second.c_str());
           });
 
   ecal_state_update_timer_->start(ecal_state_update_time_ms_);
@@ -98,7 +98,7 @@ Date: $HOST{TIME %F %R}
                                             });
 
   rec_server_service_ = std::make_shared<RecServerService>();
-  rec_server_service_server_.Create(rec_server_service_);
+  rec_server_service_server_ = std::make_unique<eCAL::protobuf::CServiceServer<eCAL::pb::rec_server::EcalRecServerService>>(rec_server_service_);
 }
 
 QEcalRec::~QEcalRec()
@@ -168,7 +168,7 @@ bool QEcalRec::setHostFilter(const std::string& hostname, const std::set<std::st
   return success;
 }
 
-std::set<std::string> QEcalRec::hostFilter(const std::string& hostname) const { return rec_server_->GetHostFilter(hostname); };
+std::set<std::string> QEcalRec::hostFilter(const std::string& hostname) const { return rec_server_->GetHostFilter(hostname); }
 
 bool QEcalRec::setConnectionToClientsActive(bool active, bool omit_dialogs)
 {
@@ -200,7 +200,7 @@ bool QEcalRec::setConnectionToClientsActive(bool active, bool omit_dialogs)
   return success;
 }
 
-bool QEcalRec::connectionToClientsActive() const { return rec_server_->IsConnectionToClientsActive(); };
+bool QEcalRec::connectionToClientsActive() const { return rec_server_->IsConnectionToClientsActive(); }
 
 ////////////////////////////////////
 // Recorder control
@@ -366,9 +366,9 @@ bool QEcalRec::stopRecording(bool omit_dialogs)
   return success;
 }
 
-bool QEcalRec::connectedToEcal() const { return rec_server_->IsConnectedToEcal(); };
+bool QEcalRec::connectedToEcal() const { return rec_server_->IsConnectedToEcal(); }
 
-bool QEcalRec::recording() const { return rec_server_->IsRecording(); };
+bool QEcalRec::recording() const { return rec_server_->IsRecording(); }
 
 int64_t QEcalRec::currentlyRecordingMeasId() const { return rec_server_->GetCurrentlyRecordingMeasId(); }
 
@@ -382,9 +382,9 @@ void QEcalRec::waitForPendingRequests() const { rec_server_->WaitForPendingReque
 // Status
 ////////////////////////////////////
 
-eCAL::rec_server::RecorderStatusMap_T                   QEcalRec::recorderStatuses()              const { return rec_server_->GetRecorderStatuses(); };
+eCAL::rec_server::RecorderStatusMap_T                   QEcalRec::recorderStatuses()              const { return rec_server_->GetRecorderStatuses(); }
 
-eCAL::rec::RecorderStatus                               QEcalRec::builtInRecorderInstanceStatus() const { return rec_server_->GetBuiltInRecorderInstanceStatus(); };
+eCAL::rec::RecorderStatus                               QEcalRec::builtInRecorderInstanceStatus() const { return rec_server_->GetBuiltInRecorderInstanceStatus(); }
 
 eCAL::rec_server::TopicInfoMap_T                        QEcalRec::topicInfo()                     const { return rec_server_->GetTopicInfo(); }
 
@@ -529,11 +529,11 @@ bool QEcalRec::setTopicWhitelist(const std::set<std::string>& topic_whitelist, b
   }
 }
 
-std::chrono::steady_clock::duration QEcalRec::maxPreBufferLength () const { return rec_server_->GetMaxPreBufferLength();  };
-bool                                QEcalRec::preBufferingEnabled() const { return rec_server_->GetPreBufferingEnabled(); };
-eCAL::rec::RecordMode               QEcalRec::recordMode         () const { return rec_server_->GetRecordMode();          };
-std::set<std::string>               QEcalRec::topicBlacklist     () const { return topic_blacklist_;                      };
-std::set<std::string>               QEcalRec::topicWhitelist     () const { return topic_whitelist_;                      };
+std::chrono::steady_clock::duration QEcalRec::maxPreBufferLength () const { return rec_server_->GetMaxPreBufferLength();  }
+bool                                QEcalRec::preBufferingEnabled() const { return rec_server_->GetPreBufferingEnabled(); }
+eCAL::rec::RecordMode               QEcalRec::recordMode         () const { return rec_server_->GetRecordMode();          }
+std::set<std::string>               QEcalRec::topicBlacklist     () const { return topic_blacklist_;                      }
+std::set<std::string>               QEcalRec::topicWhitelist     () const { return topic_whitelist_;                      }
 
 ////////////////////////////////////
 // Job Settings
@@ -574,10 +574,10 @@ void QEcalRec::setDescription(const std::string& description)
   emit descriptionChangedSignal(description);
 }
 
-std::string  QEcalRec::measRootDir   () const { return rec_server_->GetMeasRootDir();    };
-std::string  QEcalRec::measName      () const { return rec_server_->GetMeasName();       };
-unsigned int QEcalRec::maxFileSizeMib() const { return rec_server_->GetMaxFileSizeMib(); };
-std::string  QEcalRec::description   () const { return rec_server_->GetDescription();    };
+std::string  QEcalRec::measRootDir   () const { return rec_server_->GetMeasRootDir();    }
+std::string  QEcalRec::measName      () const { return rec_server_->GetMeasName();       }
+unsigned int QEcalRec::maxFileSizeMib() const { return rec_server_->GetMaxFileSizeMib(); }
+std::string  QEcalRec::description   () const { return rec_server_->GetDescription();    }
 
 ////////////////////////////////////
 // Server Settings

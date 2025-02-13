@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,21 +23,15 @@
 
 #pragma once
 
+#include <ecal/namespace.h>
 #include "ecal_def.h"
-
-#include <ecal/ecal_callback.h>
-
-#ifdef _MSC_VER
-#pragma warning(push, 0) // disable proto warnings
-#endif
-#include <ecal/core/pb/ecal.pb.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+#include "serialization/ecal_struct_sample_registration.h"
 
 #include <atomic>
+#include <map>
+#include <memory>
 #include <shared_mutex>
-#include <set>
+#include <string>
 
 namespace eCAL
 {
@@ -49,21 +43,19 @@ namespace eCAL
     CServiceGate();
     ~CServiceGate();
 
-    void Create();
-    void Destroy();
+    void Start();
+    void Stop();
 
-    bool Register  (CServiceServerImpl* service_);
-    bool Unregister(CServiceServerImpl* service_);
+    bool Register  (const std::string& service_name_, const std::shared_ptr<eCAL::CServiceServerImpl>& server_);
+    bool Unregister(const std::string& service_name_, const std::shared_ptr<eCAL::CServiceServerImpl>& server_);
 
-    void ApplyClientRegistration(const eCAL::pb::Sample& ecal_sample_);
-
-    void RefreshRegistrations();
+    void GetRegistrations(Registration::SampleList& reg_sample_list_);
 
   protected:
-    static std::atomic<bool>    m_created;
+    static std::atomic<bool>      m_created;
 
-    typedef std::set<CServiceServerImpl*> ServiceNameServiceImplSetT;
-    std::shared_timed_mutex     m_service_set_sync;
-    ServiceNameServiceImplSetT  m_service_set;
+    using ServiceNameServiceImplMapT = std::multimap<std::string, std::shared_ptr<eCAL::CServiceServerImpl>>;
+    std::shared_timed_mutex       m_service_server_map_mutex;
+    ServiceNameServiceImplMapT    m_service_server_map;
   };
-};
+}

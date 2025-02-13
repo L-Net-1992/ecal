@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ namespace eCAL
       *
       * @return            true if succeeds, false if it fails
       **/
-      bool Open(const std::string& output_dir, eAccessType access) override;
+      bool Open(const std::string& output_dir, v3::eAccessType access) override;
 
       /**
       * @brief Close file
@@ -125,54 +125,39 @@ namespace eCAL
       void SetOneFilePerChannelEnabled(bool enabled) override;
 
       /**
-      * @brief Get the available channel names of the current opened file / measurement
-      *
-      * @return       channel names
+       * @brief Get the available channel names of the current opened file / measurement
+       *
+       * @return       channel names & ids
       **/
-      std::set<std::string> GetChannelNames() const override;
+      std::set<eCAL::eh5::SChannel> GetChannels() const override;
 
       /**
-      * @brief Check if channel exists in measurement
-      *
-      * @param channel_name   name of the channel
-      *
-      * @return       true if exists, false otherwise
+       * @brief Check if channel exists in measurement
+       *
+       * @param channel   channel name & id
+       *
+       * @return       true if exists, false otherwise
       **/
-      bool HasChannel(const std::string& channel_name) const override;
+      bool HasChannel(const eCAL::eh5::SChannel & channel) const override;
 
       /**
-      * @brief Get the channel description for the given channel
-      *
-      * @param channel_name  channel name
-      *
-      * @return              channel description
+       * @brief Get data type information of the given channel
+       *
+       * @param channel_name  channel name
+       *
+       * @return              channel type
       **/
-      std::string GetChannelDescription(const std::string& channel_name) const override;
+      DataTypeInformation GetChannelDataTypeInformation(const SChannel& channel) const override;
 
       /**
-      * @brief Set description of the given channel
-      *
-      * @param channel_name    channel name
-      * @param description     description of the channel
+       * @brief Set data type information of the given channel
+       *
+       * @param channel_name  channel name
+       * @param info          datatype info of the channel
+       *
+       * @return              channel type
       **/
-      void SetChannelDescription(const std::string& channel_name, const std::string& description) override;
-
-      /**
-      * @brief Gets the channel type of the given channel
-      *
-      * @param channel_name  channel name
-      *
-      * @return              channel type
-      **/
-      std::string GetChannelType(const std::string& channel_name) const override;
-
-      /**
-      * @brief Set type of the given channel
-      *
-      * @param channel_name  channel name
-      * @param type          type of the channel
-      **/
-      void SetChannelType(const std::string& channel_name, const std::string& type) override;
+      void SetChannelDataTypeInformation(const SChannel& channel, const DataTypeInformation & info) override;
 
       /**
       * @brief Gets minimum timestamp for specified channel
@@ -181,7 +166,7 @@ namespace eCAL
       *
       * @return                minimum timestamp value
       **/
-      long long GetMinTimestamp(const std::string& channel_name) const override;
+      long long GetMinTimestamp(const SChannel& channel) const override;
 
       /**
       * @brief Gets maximum timestamp for specified channel
@@ -190,7 +175,7 @@ namespace eCAL
       *
       * @return                maximum timestamp value
       **/
-      long long GetMaxTimestamp(const std::string& channel_name) const override;
+      long long GetMaxTimestamp(const SChannel& channel) const override;
 
       /**
       * @brief Gets the header info for all data entries for the given channel
@@ -201,7 +186,7 @@ namespace eCAL
       *
       * @return                    true if succeeds, false if it fails
       **/
-      bool GetEntriesInfo(const std::string& channel_name, EntryInfoSet& entries) const override;
+      bool GetEntriesInfo(const SChannel& channel, EntryInfoSet& entries) const override;
 
       /**
       * @brief Gets the header info for data entries for the given channel included in given time range (begin->end)
@@ -214,7 +199,7 @@ namespace eCAL
       *
       * @return                   true if succeeds, false if it fails
       **/
-      bool GetEntriesInfoRange(const std::string& channel_name, long long begin, long long end, EntryInfoSet& entries) const override;
+      bool GetEntriesInfoRange(const SChannel& channel, long long begin, long long end, EntryInfoSet& entries) const override;
 
       /**
       * @brief Gets data size of a specific entry
@@ -256,7 +241,7 @@ namespace eCAL
       *
       * @return               true if succeeds, false if it fails
       **/
-      bool AddEntryToFile(const void* data, const unsigned long long& size, const long long& snd_timestamp, const long long& rcv_timestamp, const std::string& channel_name, long long id, long long clock) override;
+      bool AddEntryToFile(const SWriteEntry& entry) override;
 
       using CallbackFunction = std::function<void ()>;
       /**

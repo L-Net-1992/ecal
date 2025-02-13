@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2020 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,8 +71,8 @@ void StartTaskListThread::Run()
 
       TaskState task_state;
       task_state.info           = "";
-      task_state.severity       = eCAL_Process_eSeverity::proc_sev_unknown;
-      task_state.severity_level = eCAL_Process_eSeverity_Level::proc_sev_level1;
+      task_state.severity       = eCAL::Process::eSeverity::unknown;
+      task_state.severity_level = eCAL::Process::eSeverityLevel::level1;
       task->SetMonitoringTaskState(task_state);
       task->ResetConfigModifiedSinceStart();
 
@@ -102,10 +102,10 @@ void StartTaskListThread::Run()
     for (const auto& host_taskparamlist_pair : start_tasks_param_map)
     {
       if (IsInterrupted()) return;
-      std::vector<int32_t> pids = future_map[host_taskparamlist_pair.first].get();
+      std::vector<int32_t> process_ids = future_map[host_taskparamlist_pair.first].get();
       if (IsInterrupted()) return;
 
-      for (size_t i = 0; (i < pids.size()) && (i < original_task_ptr_map[host_taskparamlist_pair.first].size()); i++)
+      for (size_t i = 0; (i < process_ids.size()) && (i < original_task_ptr_map[host_taskparamlist_pair.first].size()); i++)
       {
         std::shared_ptr<EcalSysTask> task = original_task_ptr_map[host_taskparamlist_pair.first][i];
 
@@ -113,9 +113,9 @@ void StartTaskListThread::Run()
           std::lock_guard<std::recursive_mutex> task_lock(task->mutex);
           if (IsInterrupted()) return;
 
-          if (pids[i] != 0)
+          if (process_ids[i] != 0)
           {
-            task->SetPids({pids[i]});
+            task->SetPids({process_ids[i]});
             task->SetHostStartedOn(host_taskparamlist_pair.first);
             task->SetStartStopState(EcalSysTask::StartStopState::Started_Successfully);
 
@@ -133,7 +133,7 @@ void StartTaskListThread::Run()
       }
 
       // Log an error for all tasks that we didn't get a response for (e.g. because we weren't able to contact the client)
-      for (size_t i = pids.size(); i < original_task_ptr_map[host_taskparamlist_pair.first].size(); i++)
+      for (size_t i = process_ids.size(); i < original_task_ptr_map[host_taskparamlist_pair.first].size(); i++)
       {
         std::shared_ptr<EcalSysTask> task = original_task_ptr_map[host_taskparamlist_pair.first][i];
 

@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2024 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@
 #include "ecal_play_command.h"
 #include "stop_watch.h"
 
-#include <ecalhdf5/eh5_meas.h>
 #include <ecal/ecal.h>
 
 #include <memory>
@@ -80,7 +79,7 @@ public:
    * @param measurement    The new measurement
    * @param path           The (optional) path from where the measurement was loaded
    */
-  void SetMeasurement(std::shared_ptr<eCAL::eh5::HDF5Meas> measurement, const std::string& path = "");
+  void SetMeasurement(const std::shared_ptr<eCAL::eh5::v2::HDF5Meas>& measurement, const std::string& path = "");
 
   /**
    * @brief Returns whether a measurement has successfully been loaded
@@ -157,6 +156,15 @@ public:
    * @return channel type
   **/
   std::string GetChannelType(const std::string& channel_name);
+
+  /**
+  * @brief Gets the data type of the given channel
+  *
+  * @param channel_name  channel name
+  *
+  * @return channel type
+  **/
+  std::string GetChannelEncoding(const std::string& channel_name);
 
   void CalculateEstimatedSizeForChannels();
 

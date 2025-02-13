@@ -1,6 +1,6 @@
 /* ========================= eCAL LICENSE =================================
  *
- * Copyright (C) 2016 - 2019 Continental Corporation
+ * Copyright (C) 2016 - 2025 Continental Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,10 +46,11 @@ public:
   {
     GROUP,
     UNIT_NAME,
+    SERVICE_TYPE,
     SERVICE_NAME,
     PROCESS_NAME,
     HOST_NAME,
-    PID,
+    PROCESS_ID,
     TCP_PORT,
     METHOD_NAME,
     METHOD_REQUEST_TYPE,
@@ -81,10 +82,11 @@ private:
     { Columns::GROUP,                "Group" },
     { Columns::HEARTBEAT,            "Heartbeat" },
     { Columns::HOST_NAME,            "Host" },
-    { Columns::PID,                  "PID" },
+    { Columns::PROCESS_ID,           "Process Id" },
     { Columns::PROCESS_NAME,         "Process Path" },
     { Columns::UNIT_NAME,            "Process" },
     { Columns::SERVICE_NAME,         "Service" },
+    { Columns::SERVICE_TYPE,         "Type" },
     { Columns::TCP_PORT,             "TCP Port" },
     { Columns::METHOD_NAME,          "Method" },
     { Columns::METHOD_REQUEST_TYPE,  "Req. Type" },
@@ -95,18 +97,20 @@ private:
   std::map<Columns, int> tree_item_column_mapping =
   {
     { Columns::GROUP,                -1 },
-    { Columns::HEARTBEAT,            (int)ServiceTreeItem::Columns::RCLOCK },
-    { Columns::HOST_NAME,            (int)ServiceTreeItem::Columns::HNAME },
-    { Columns::PID,                  (int)ServiceTreeItem::Columns::PID },
-    { Columns::PROCESS_NAME,         (int)ServiceTreeItem::Columns::PNAME },
-    { Columns::UNIT_NAME,            (int)ServiceTreeItem::Columns::UNAME },
-    { Columns::SERVICE_NAME,         (int)ServiceTreeItem::Columns::SNAME },
-    { Columns::TCP_PORT,             (int)ServiceTreeItem::Columns::TCP_PORT },
-    { Columns::METHOD_NAME,          (int)ServiceTreeItem::Columns::MNAME },
-    { Columns::METHOD_REQUEST_TYPE,  (int)ServiceTreeItem::Columns::REQ_TYPE },
-    { Columns::METHOD_RESPONSE_TYPE, (int)ServiceTreeItem::Columns::RESP_TYPE },
-    { Columns::CALL_COUNT,           (int)ServiceTreeItem::Columns::CALL_COUNT },
+    { Columns::HEARTBEAT,            (int)ServiceTreeItem<eCAL::pb::Service>::Columns::REGISTRATION_CLOCK },
+    { Columns::HOST_NAME,            (int)ServiceTreeItem<eCAL::pb::Service>::Columns::HOST_NAME },
+    { Columns::PROCESS_ID,           (int)ServiceTreeItem<eCAL::pb::Service>::Columns::PROCESS_ID },
+    { Columns::PROCESS_NAME,         (int)ServiceTreeItem<eCAL::pb::Service>::Columns::PROCESS_NAME },
+    { Columns::UNIT_NAME,            (int)ServiceTreeItem<eCAL::pb::Service>::Columns::UNIT_NAME },
+    { Columns::SERVICE_NAME,         (int)ServiceTreeItem<eCAL::pb::Service>::Columns::SERVICE_NAME },
+    { Columns::SERVICE_TYPE,         (int)ServiceTreeItem<eCAL::pb::Service>::Columns::STYPE },
+    { Columns::TCP_PORT,             (int)ServiceTreeItem<eCAL::pb::Service>::Columns::TCP_PORT },
+    { Columns::METHOD_NAME,          (int)ServiceTreeItem<eCAL::pb::Service>::Columns::METHOD_NAME },
+    { Columns::METHOD_REQUEST_TYPE,  (int)ServiceTreeItem<eCAL::pb::Service>::Columns::REQ_TYPE },
+    { Columns::METHOD_RESPONSE_TYPE, (int)ServiceTreeItem<eCAL::pb::Service>::Columns::RESP_TYPE },
+    { Columns::CALL_COUNT,           (int)ServiceTreeItem<eCAL::pb::Service>::Columns::CALL_COUNT },
   };
 
-  std::map<std::string, ServiceTreeItem*> tree_item_map_;
+  std::map<std::string, ServiceTreeItem<eCAL::pb::Client>*> tree_item_client_map_;
+  std::map<std::string, ServiceTreeItem<eCAL::pb::Service>*> tree_item_server_map_;
 };
